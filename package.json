@@ -1,0 +1,29 @@
+{
+  "name": "release-announcer",
+  "version": "1.0.0",
+  "description": "Slack bot for announcing releases with GitHub and Jira integration",
+  "main": "api/slack.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/slack.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.17.1",
+    "@octokit/rest": "^20.0.2",
+    "jira-client": "^8.2.2",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "slack",
+    "bot",
+    "release",
+    "github",
+    "jira",
+    "vercel"
+  ],
+  "author": "",
+  "license": "MIT"
+} 
