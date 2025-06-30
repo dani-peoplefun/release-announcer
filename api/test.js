@@ -70,7 +70,7 @@ async function testJiraConnection() {
         userEmail: user.emailAddress,
         project: project.name,
         projectKey: project.key,
-        projectUrl: `${process.env.JIRA_SERVER}/projects/${project.key}`,
+        projectUrl: `https://${process.env.JIRA_SERVER}/projects/${project.key}`,
       }
     };
   } catch (error) {
@@ -87,8 +87,7 @@ async function testReleaseAnnouncement(releaseNumber) {
     releaseNumber,
     previousRelease: getPreviousRelease(releaseNumber),
     github: { success: false },
-    jira: { success: false },
-    crossReference: { success: false },
+    jiraExtraction: { success: false },
     announcement: null,
   };
 
@@ -114,69 +113,49 @@ async function testReleaseAnnouncement(releaseNumber) {
       moreCommits: comparison.commits.length > 5,
     };
 
-    const releaseCommitShas = new Set(comparison.commits.map(commit => commit.sha));
-
-    // --- 2. Test Jira search ---
-    const twoMonthsAgo = new Date();
-    twoMonthsAgo.setDate(twoMonthsAgo.getDate() - 60);
-    const jqlDate = twoMonthsAgo.toISOString().split('T')[0];
-    
-    const jqlQuery = `project = ${JIRA_PROJECT} AND status = Closed AND updated >= "${jqlDate}"`;
-    const searchResult = await jira.searchJira(jqlQuery, { 
-      fields: ["summary", "comment", "description"],
-      maxResults: 50,
-    });
-
-    results.jira = {
-      success: true,
-      totalIssues: searchResult.total,
-      searchedIssues: searchResult.issues.length,
-      jqlQuery,
-      sampleIssues: searchResult.issues.slice(0, 3).map(issue => ({
-        key: issue.key,
-        summary: issue.fields.summary,
-        url: `${process.env.JIRA_SERVER}/browse/${issue.key}`,
-      })),
-    };
-
-    // --- 3. Test cross-reference ---
+    // --- 2. Extract JIRA references from commit messages ---
     const releaseChanges = [];
     const addedIssues = new Set();
-    let totalCommitMatches = 0;
+    const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
+    let totalJiraReferences = 0;
 
-    for (const issue of searchResult.issues) {
-      const allText = [
-        issue.fields.description || '',
-        ...(issue.fields.comment?.comments.map(c => c.body) || [])
-      ].join(' ');
-
-      const commitRegex = /github\.com\/.*?\/.*?\/commit\/([a-f0-9]{40})/g;
-      let match;
-      while ((match = commitRegex.exec(allText)) !== null) {
-        const commitSha = match[1];
-        totalCommitMatches++;
+    for (const commit of comparison.commits) {
+      const commitTitle = commit.commit.message.split('\n')[0];
+      const commitMessage = commit.commit.message;
+      
+      // Check both title and full message for JIRA references
+      const allText = `${commitTitle} ${commitMessage}`;
+      const matches = allText.match(jiraRegex);
+      
+      if (matches) {
+        totalJiraReferences += matches.length;
         
-        if (releaseCommitShas.has(commitSha) && !addedIssues.has(issue.key)) {
-          releaseChanges.push({
-            key: issue.key,
-            summary: issue.fields.summary,
-            url: `${process.env.JIRA_SERVER}/browse/${issue.key}`,
-            matchedCommit: commitSha.substring(0, 7),
-          });
-          addedIssues.add(issue.key);
-          break;
+        // Process each unique JIRA reference found in this commit
+        for (const match of matches) {
+          const issueKey = match.toUpperCase();
+          if (!addedIssues.has(issueKey)) {
+            releaseChanges.push({
+              key: issueKey,
+              summary: commitTitle,
+              url: `${process.env.JIRA_SERVER}/browse/${issueKey}`,
+              commitSha: commit.sha.substring(0, 7),
+              commitAuthor: commit.commit.author.name,
+            });
+            addedIssues.add(issueKey);
+          }
         }
       }
     }
 
-    results.crossReference = {
+    results.jiraExtraction = {
       success: true,
-      totalCommitReferences: totalCommitMatches,
-      matchedIssues: releaseChanges.length,
+      totalJiraReferences,
+      uniqueIssues: releaseChanges.length,
       releaseChanges,
+      regex: jiraRegex.toString(),
     };
 
-    // --- 4. Generate announcement ---
+    // --- 3. Generate announcement ---
     if (releaseChanges.length > 0) {
       const changesText = releaseChanges
         .map(change => `${change.url}\n${change.key} ${change.summary}`)
@@ -190,10 +169,8 @@ async function testReleaseAnnouncement(releaseNumber) {
   } catch (error) {
     if (!results.github.success) {
       results.github = { success: false, error: error.message };
-    } else if (!results.jira.success) {
-      results.jira = { success: false, error: error.message };
     } else {
-      results.crossReference = { success: false, error: error.message };
+      results.jiraExtraction = { success: false, error: error.message };
     }
   }
 
@@ -348,8 +325,6 @@ module.exports = async (req, res) => {
           hasSlackSecret: !!process.env.SLACK_SIGNING_SECRET,
           hasGitHubToken: !!process.env.GITHUB_TOKEN,
           hasJiraServer: !!process.env.JIRA_SERVER,
-          hasJiraUsername: !!process.env.JIRA_USERNAME,
-          hasJiraToken: !!process.env.JIRA_API_TOKEN,
         }
       });
     }
@@ -405,7 +380,7 @@ module.exports = async (req, res) => {
         jira: jiraResult,
         release: releaseResult,
         overall: {
-          success: githubResult.success && jiraResult.success && releaseResult.crossReference.success,
+          success: githubResult.success && jiraResult.success && releaseResult.jiraExtraction.success,
           readyForProduction: githubResult.success && jiraResult.success,
         }
       });

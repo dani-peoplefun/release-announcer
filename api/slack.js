@@ -1,22 +1,12 @@
 // Import necessary libraries
 const { App } = require('@slack/bolt');
 const { Octokit } = require('@octokit/rest');
-const JiraApi = require('jira-client');
 require('dotenv').config();
 
 // --- Initialize clients ---
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-});
-
-const jira = new JiraApi({
-  protocol: 'https',
-  host: process.env.JIRA_SERVER,
-  username: process.env.JIRA_USERNAME,
-  password: process.env.JIRA_API_TOKEN, // Use API Token as password
-  apiVersion: '2',
-  strictSSL: true,
 });
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -59,42 +49,37 @@ app.command('/release-announce', async ({ command, ack, respond }) => {
       base: `releases/${previousRelease}`,
       head: `releases/${releaseNumber}`,
     });
-    const releaseCommitShas = new Set(comparison.commits.map(commit => commit.sha));
 
-    // --- 2. Get recently closed Jira tickets ---
-    const twoMonthsAgo = new Date();
-    twoMonthsAgo.setDate(twoMonthsAgo.getDate() - 60);
-    const jqlDate = twoMonthsAgo.toISOString().split('T')[0];
-    
-    // Note: The JQL for board/sprint is often complex. A simpler, effective query is by project and status.
-    const jqlQuery = `project = ${JIRA_PROJECT} AND status = Closed AND updated >= "${jqlDate}"`;
-    const searchResult = await jira.searchJira(jqlQuery, { fields: ["summary", "comment"] });
-
-    // --- 3. Cross-reference Jira tickets with commits ---
+    // --- 2. Extract JIRA references from commit messages ---
     const releaseChanges = [];
     const addedIssues = new Set(); // To prevent duplicate entries
+    
+    // Regex to find JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345, process.env.JIRA_PROJECT-123)
+    const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
 
-    for (const issue of searchResult.issues) {
-      const allText = [
-        issue.fields.description,
-        ...(issue.fields.comment?.comments.map(c => c.body) || [])
-      ].join(' ');
-
-      const commitRegex = /github\.com\/.*?\/.*?\/commit\/([a-f0-9]{40})/g;
-      let match;
-      while ((match = commitRegex.exec(allText)) !== null) {
-        const commitSha = match[1];
-        if (releaseCommitShas.has(commitSha) && !addedIssues.has(issue.key)) {
-          releaseChanges.push(
-            `${process.env.JIRA_SERVER}/browse/${issue.key}\n${issue.key} ${issue.fields.summary}`
-          );
-          addedIssues.add(issue.key);
-          break; // Move to the next issue once a match is found
+    for (const commit of comparison.commits) {
+      const commitTitle = commit.commit.message.split('\n')[0]; // First line is the title
+      const commitMessage = commit.commit.message; // Full message
+      
+      // Check both title and full message for JIRA references
+      const allText = `${commitTitle} ${commitMessage}`;
+      const matches = allText.match(jiraRegex);
+      
+      if (matches) {
+        // Process each unique JIRA reference found in this commit
+        for (const match of matches) {
+          const issueKey = match.toUpperCase(); // Normalize to uppercase
+          if (!addedIssues.has(issueKey)) {
+            releaseChanges.push(
+              `${process.env.JIRA_SERVER}/browse/${issueKey}\n${issueKey} ${commitTitle}`
+            );
+            addedIssues.add(issueKey);
+          }
         }
       }
     }
 
-    // --- 4. Format and send the Slack message ---
+    // --- 3. Format and send the Slack message ---
     let message;
     if (releaseChanges.length > 0) {
       const changesText = releaseChanges.join('\n');

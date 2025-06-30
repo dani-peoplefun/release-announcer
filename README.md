@@ -1,12 +1,12 @@
 # Release Announcer Slack Bot
 
-A Slack bot that automatically generates release announcements by cross-referencing GitHub commits with Jira tickets. Built with Node.js and deployed on Vercel.
+A Slack bot that automatically generates release announcements by extracting JIRA ticket references from GitHub commit messages. Built with Node.js and deployed on Vercel.
 
 ## Features
 
 - 🚀 **Automated Release Announcements**: Generate release summaries with a simple `/release-announce` command
 - 🔗 **GitHub Integration**: Compares release branches to identify commits
-- 🎫 **Jira Integration**: Cross-references commits with Jira tickets
+- 🎫 **JIRA Reference Extraction**: Finds JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) in commit messages
 - 🔒 **Secure**: Uses Slack's request signing for authentication
 - ⚡ **Serverless**: Deployed on Vercel for automatic scaling and zero server management
 
@@ -14,8 +14,8 @@ A Slack bot that automatically generates release announcements by cross-referenc
 
 1. **User runs command**: `/release-announce 2.1.0`
 2. **GitHub Analysis**: Compares commits between previous release and current release
-3. **Jira Cross-Reference**: Searches for recently closed Jira tickets that reference the release commits
-4. **Slack Announcement**: Posts a formatted message with all relevant changes
+3. **JIRA Extraction**: Extracts JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) from commit titles and messages
+4. **Slack Announcement**: Posts a formatted message with all referenced JIRA tickets
 
 ## Prerequisites
 
@@ -49,9 +49,7 @@ Fill in your actual values in `.env.local`:
 - **SLACK_BOT_TOKEN**: Get from your Slack app's "OAuth & Permissions" page
 - **SLACK_SIGNING_SECRET**: Get from your Slack app's "Basic Information" page
 - **GITHUB_TOKEN**: Create a personal access token with repo permissions
-- **JIRA_SERVER**: Your Jira server URL (e.g., https://yourcompany.atlassian.net)
-- **JIRA_USERNAME**: Your Jira email address
-- **JIRA_API_TOKEN**: Create from your Jira account settings
+- **JIRA_SERVER**: Your Jira server URL (e.g., https://yourcompany.atlassian.net) - used for generating ticket URLs
 
 ### 3. Create a Slack App
 
@@ -103,18 +101,20 @@ In any Slack channel where the bot is installed:
 
 The bot will:
 1. Compare `releases/2.0` with `releases/2.1.0` branches
-2. Find Jira tickets that reference commits in this release
+2. Extract JIRA ticket references from commit messages
 3. Post a formatted message like:
 
 ```
 *Deploying to prod* 🚀
 *Branch:* `releases/2.1.0`
 *Changes:*
-https://process.env.GITHUB_OWNER.atlassian.net/browse/process.env.JIRA_PROJECT-123
+https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123
 process.env.JIRA_PROJECT-123 Fix user login issue
-https://process.env.GITHUB_OWNER.atlassian.net/browse/process.env.JIRA_PROJECT-124
+https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124
 process.env.JIRA_PROJECT-124 Add new dashboard feature
 ```
+
+**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) in commit titles and messages. Make sure your commits include JIRA ticket references!
 
 ## Testing Endpoint
 
@@ -181,18 +181,12 @@ The testing endpoint returns detailed JSON responses. For example, the `all` tes
       "commits": [...],
       "moreCommits": true
     },
-    "jira": {
+    "jiraExtraction": {
       "success": true,
-      "totalIssues": 25,
-      "searchedIssues": 25,
-      "jqlQuery": "project = process.env.JIRA_PROJECT AND status = Closed AND updated >= \"2024-01-01\"",
-      "sampleIssues": [...]
-    },
-    "crossReference": {
-      "success": true,
-      "totalCommitReferences": 8,
-      "matchedIssues": 3,
-      "releaseChanges": [...]
+      "totalJiraReferences": 8,
+      "uniqueIssues": 3,
+      "releaseChanges": [...],
+      "regex": "/\\bprocess.env.JIRA_PROJECT-\\d+\\b/gi"
     },
     "announcement": "*Deploying to prod* 🚀\n*Branch:* `releases/2.1.0`\n*Changes:*\n..."
   },
