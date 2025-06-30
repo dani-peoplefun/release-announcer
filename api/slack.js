@@ -12,7 +12,7 @@ const app = new App({
 
 const jira = new JiraApi({
   protocol: 'https',
-  host: 'process.env.GITHUB_OWNER.atlassian.net',
+  host: process.env.JIRA_SERVER,
   username: process.env.JIRA_USERNAME,
   password: process.env.JIRA_API_TOKEN, // Use API Token as password
   apiVersion: '2',
@@ -86,7 +86,7 @@ app.command('/release-announce', async ({ command, ack, respond }) => {
         const commitSha = match[1];
         if (releaseCommitShas.has(commitSha) && !addedIssues.has(issue.key)) {
           releaseChanges.push(
-            `https://process.env.GITHUB_OWNER.atlassian.net/browse/${issue.key}\n${issue.key} ${issue.fields.summary}`
+            `${process.env.JIRA_SERVER}/browse/${issue.key}\n${issue.key} ${issue.fields.summary}`
           );
           addedIssues.add(issue.key);
           break; // Move to the next issue once a match is found
