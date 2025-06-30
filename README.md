@@ -210,6 +210,76 @@ The testing endpoint returns detailed JSON responses. For example, the `all` tes
 3. **Debugging Issues**: Use individual tests (`github`, `jira`) to isolate problems
 4. **Testing Releases**: Use the `release` test with different version numbers to see what would be announced
 
+### Testing Endpoint Security
+
+The testing endpoint includes several security measures to prevent unauthorized access:
+
+#### 🔒 **Automatic Production Protection**
+- The test endpoint is **automatically disabled in production** unless explicitly enabled
+- Set `ENABLE_TEST_ENDPOINT=true` in production environment variables to enable it
+
+#### 🔑 **API Key Protection**
+Add an API key requirement for enhanced security:
+
+```bash
+# Generate a secure API key
+pnpm generate-key
+# or: node scripts/generate-api-key.js
+
+# Then add it to your .env.local or Vercel environment variables
+TEST_API_KEY=your-generated-api-key-here
+```
+
+Then access the endpoint with the key:
+```bash
+# As a header (recommended)
+curl -H "X-API-Key: your-secret-api-key-here" https://your-app.vercel.app/api/test
+
+# Or as a query parameter
+curl "https://your-app.vercel.app/api/test?api_key=your-secret-api-key-here"
+```
+
+#### 🌐 **Origin Restrictions**
+Limit which domains can access the test endpoint:
+
+```bash
+# Allow specific origins (comma-separated)
+TEST_ALLOWED_ORIGINS=http://localhost:3001,https://yourdomain.com
+```
+
+#### ⏱️ **Rate Limiting**
+- Maximum 10 requests per 5-minute window per IP address
+- Prevents abuse and excessive API usage
+- Returns HTTP 429 when limit exceeded
+
+#### 🛡️ **Security Headers**
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- Restrictive CORS policies
+
+### Security Configuration Examples
+
+**Development (most permissive):**
+```bash
+# .env.local - no additional security needed
+ENABLE_TEST_ENDPOINT=true
+```
+
+**Staging (moderate security):**
+```bash
+ENABLE_TEST_ENDPOINT=true
+TEST_API_KEY=staging-secret-key-123
+TEST_ALLOWED_ORIGINS=https://staging.yourcompany.com
+```
+
+**Production (high security):**
+```bash
+ENABLE_TEST_ENDPOINT=true
+TEST_API_KEY=prod-super-secret-key-456
+TEST_ALLOWED_ORIGINS=https://admin.yourcompany.com
+```
+
 ## Security
 
 This bot implements several security measures:
@@ -266,7 +336,8 @@ View logs in the Vercel dashboard under your project's "Functions" tab to debug 
 
 ```bash
 # Run the local testing server
-pnpm test
+pnpm dev
+# or: pnpm test
 # or: node scripts/test-local.js
 ```
 
@@ -278,8 +349,9 @@ This will start a local testing server at `http://localhost:3001` with a friendl
 # Install Vercel CLI
 npm install -g vercel
 
-# Start local development server
-vercel dev
+# Start Vercel development server
+pnpm dev:vercel
+# or: vercel dev
 ```
 
 Your bot will be available at `http://localhost:3000/api/slack` for testing, and the testing endpoint at `http://localhost:3000/api/test`.
@@ -292,8 +364,8 @@ Since Slack needs a public URL, use ngrok for local development:
 # Install ngrok
 npm install -g ngrok
 
-# In one terminal, start your local server
-vercel dev
+# In one terminal, start your Vercel dev server
+pnpm dev:vercel
 
 # In another terminal, expose it publicly
 ngrok http 3000
@@ -302,6 +374,10 @@ ngrok http 3000
 https://abc123.ngrok.io/api/slack
 ```
 
+**Development Workflow:**
+- Use `pnpm dev` for testing bot logic without Slack
+- Use `pnpm dev:vercel` + ngrok when you need to test the actual Slack integration
+
 ## Contributing
 
 1. Fork the repository
@@ -309,6 +385,47 @@ https://abc123.ngrok.io/api/slack
 3. Make your changes
 4. Test thoroughly
 5. Submit a pull request
+
+## Summary
+
+This Slack Release Announcer provides a complete, secure solution for automated release announcements:
+
+### 🔒 **Security Features**
+- **Request Signing**: Slack's built-in request verification protects the main bot endpoint
+- **Test Endpoint Protection**: Multi-layered security for the testing endpoint
+- **Rate Limiting**: Prevents abuse with automatic request throttling
+- **Environment-based Controls**: Automatic production protection
+- **API Key Authentication**: Optional additional security layer
+
+### 🧪 **Testing Features**
+- **Comprehensive Test Suite**: Verify GitHub, Jira, and full release logic
+- **Local Testing Server**: Friendly web interface for development
+- **Production Testing**: Secure endpoint for live system verification
+- **API Key Generator**: Built-in tool for creating secure access keys
+
+### 🚀 **Deployment Features**
+- **Serverless Architecture**: Zero server management with Vercel
+- **Automatic Scaling**: Handles traffic spikes automatically
+- **Environment Variables**: Secure credential management
+- **Easy Deployment**: One-click deployment from GitHub
+
+### 📋 **Quick Start Commands**
+```bash
+# Setup
+pnpm install
+cp env.example .env.local
+# (edit .env.local with your credentials)
+
+# Generate API key for testing
+pnpm generate-key
+
+# Local development
+pnpm dev            # Start local testing server (recommended)
+pnpm dev:vercel     # Start Vercel dev server (for Slack integration testing)
+
+# Deploy to production
+git push            # Triggers automatic deployment
+```
 
 ## License
 

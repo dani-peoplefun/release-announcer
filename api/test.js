@@ -200,15 +200,124 @@ async function testReleaseAnnouncement(releaseNumber) {
   return results;
 }
 
+// --- Security helpers ---
+const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5 minutes
+const RATE_LIMIT_MAX_REQUESTS = 10; // Max requests per window
+const requestCounts = new Map();
+
+function checkRateLimit(clientId) {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  // Clean old entries
+  for (const [id, data] of requestCounts.entries()) {
+    if (data.timestamp < windowStart) {
+      requestCounts.delete(id);
+    }
+  }
+  
+  const clientData = requestCounts.get(clientId) || { count: 0, timestamp: now };
+  
+  if (clientData.timestamp < windowStart) {
+    // Reset counter for new window
+    clientData.count = 1;
+    clientData.timestamp = now;
+  } else {
+    clientData.count++;
+  }
+  
+  requestCounts.set(clientId, clientData);
+  
+  return {
+    allowed: clientData.count <= RATE_LIMIT_MAX_REQUESTS,
+    remaining: Math.max(0, RATE_LIMIT_MAX_REQUESTS - clientData.count),
+    resetTime: clientData.timestamp + RATE_LIMIT_WINDOW
+  };
+}
+
+function isTestingDisabled() {
+  // Disable testing in production unless explicitly enabled
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_ENDPOINT !== 'true') {
+    return true;
+  }
+
+  return false;
+}
+
+function validateTestAccess(req) {
+  const errors = [];
+  
+  // Check if testing is disabled
+  if (isTestingDisabled()) {
+    errors.push('Testing endpoint is disabled in production');
+  }
+  
+  // Check for API key if required
+  const requiredApiKey = process.env.TEST_API_KEY;
+  if (requiredApiKey) {
+    const providedKey = req.headers['x-api-key'] || req.query.api_key;
+    if (!providedKey || providedKey !== requiredApiKey) {
+      errors.push('Invalid or missing API key');
+    }
+  }
+  
+  // Check for allowed origins if specified
+  const allowedOrigins = process.env.TEST_ALLOWED_ORIGINS;
+  if (allowedOrigins) {
+    const origin = req.headers.origin || req.headers.referer;
+    const allowed = allowedOrigins.split(',').map(o => o.trim());
+    if (origin && !allowed.some(allowed => origin.includes(allowed))) {
+      errors.push('Origin not allowed');
+    }
+  }
+  
+  return {
+    allowed: errors.length === 0,
+    errors
+  };
+}
+
 // --- Main handler ---
 module.exports = async (req, res) => {
-  // Set CORS headers for testing from browser
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Basic security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // CORS headers (restrictive by default)
+  const allowedOrigin = process.env.TEST_ALLOWED_ORIGINS?.split(',')[0] || 'http://localhost:3001';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  // Rate limiting
+  const clientId = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+  const rateLimit = checkRateLimit(clientId);
+  
+  res.setHeader('X-RateLimit-Limit', RATE_LIMIT_MAX_REQUESTS.toString());
+  res.setHeader('X-RateLimit-Remaining', rateLimit.remaining.toString());
+  res.setHeader('X-RateLimit-Reset', new Date(rateLimit.resetTime).toISOString());
+  
+  if (!rateLimit.allowed) {
+    return res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: `Too many requests. Try again after ${new Date(rateLimit.resetTime).toISOString()}`,
+      retryAfter: Math.ceil((rateLimit.resetTime - Date.now()) / 1000)
+    });
+  }
+  
+  // Validate access permissions
+  const accessCheck = validateTestAccess(req);
+  if (!accessCheck.allowed) {
+    return res.status(403).json({
+      error: 'Access denied',
+      reasons: accessCheck.errors,
+      hint: 'Contact your administrator for access'
+    });
   }
 
   const { method, query } = req;

@@ -13,16 +13,28 @@ const testHandler = require('../api/test');
 
 const PORT = 3001;
 
+// Load environment variables
+require('dotenv').config({ path: '.env.local' });
+
 // Create a simple HTTP server to test the endpoint locally
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   
   if (parsedUrl.pathname === '/api/test') {
+    // Add API key to query if set in environment (for local testing)
+    if (process.env.TEST_API_KEY && !parsedUrl.query.api_key) {
+      parsedUrl.query.api_key = process.env.TEST_API_KEY;
+    }
+    
     // Convert Node.js request to Vercel-style request object
     const vercelReq = {
       method: req.method,
       query: parsedUrl.query,
-      headers: req.headers,
+      headers: {
+        ...req.headers,
+        // Add API key header if set in environment
+        ...(process.env.TEST_API_KEY && { 'x-api-key': process.env.TEST_API_KEY })
+      },
     };
 
     // Convert Node.js response to Vercel-style response object
@@ -72,6 +84,15 @@ const server = http.createServer(async (req, res) => {
     
     <h2>Environment Variables Status</h2>
     <p>Make sure you have created a <code>.env.local</code> file with all required environment variables.</p>
+    <div style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0;">
+        <h3>Security Status</h3>
+        <ul>
+            <li><strong>API Key:</strong> ${process.env.TEST_API_KEY ? '✅ Set (automatically included in requests)' : '❌ Not set'}</li>
+            <li><strong>Production Mode:</strong> ${process.env.NODE_ENV === 'production' ? '🔒 Production' : '🔧 Development'}</li>
+            <li><strong>Test Endpoint:</strong> ${process.env.NODE_ENV === 'production' && process.env.ENABLE_TEST_ENDPOINT !== 'true' ? '🚫 Disabled in production' : '✅ Enabled'}</li>
+        </ul>
+        ${process.env.TEST_API_KEY ? '<p><em>Note: API key is automatically included in all test requests from this interface.</em></p>' : ''}
+    </div>
     
     <h2>Custom Release Test</h2>
     <form onsubmit="testRelease(event)">

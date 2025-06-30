@@ -4,10 +4,12 @@
   "description": "Slack bot for announcing releases with GitHub and Jira integration",
   "main": "api/slack.js",
   "scripts": {
-    "dev": "vercel dev",
+    "dev": "node scripts/test-local.js",
+    "dev:vercel": "vercel dev",
     "start": "node api/slack.js",
     "test": "node scripts/test-local.js",
-    "test:endpoint": "node -e \"console.log('Use the /api/test endpoint for testing')\""
+    "test:endpoint": "node -e \"console.log('Use the /api/test endpoint for testing')\"",
+    "generate-key": "node scripts/generate-api-key.js"
   },
   "dependencies": {
     "@slack/bolt": "^3.17.1",
