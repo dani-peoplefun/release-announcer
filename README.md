@@ -49,6 +49,7 @@ Fill in your actual values in `.env.local`:
 - **SLACK_BOT_TOKEN**: Get from your Slack app's "OAuth & Permissions" page
 - **SLACK_SIGNING_SECRET**: Get from your Slack app's "Basic Information" page
 - **GITHUB_TOKEN**: Create a personal access token with repo permissions
+- **JIRA_SERVER**: Your Jira server URL (e.g., https://yourcompany.atlassian.net)
 - **JIRA_USERNAME**: Your Jira email address
 - **JIRA_API_TOKEN**: Create from your Jira account settings
 
@@ -115,6 +116,100 @@ https://process.env.GITHUB_OWNER.atlassian.net/browse/process.env.JIRA_PROJECT-1
 process.env.JIRA_PROJECT-124 Add new dashboard feature
 ```
 
+## Testing Endpoint
+
+The bot includes a comprehensive testing endpoint at `/api/test` that helps you verify all integrations are working properly without going through Slack.
+
+### Available Tests
+
+**Health Check** - Basic status and environment check
+```
+GET https://your-app.vercel.app/api/test
+```
+
+**GitHub Connection Test** - Verifies GitHub API access and repository permissions
+```
+GET https://your-app.vercel.app/api/test?test=github
+```
+
+**Jira Connection Test** - Verifies Jira API access and project permissions
+```
+GET https://your-app.vercel.app/api/test?test=jira
+```
+
+**Release Announcement Test** - Tests the full release logic end-to-end
+```
+GET https://your-app.vercel.app/api/test?test=release&release=2.1.0
+```
+
+**Run All Tests** - Comprehensive test suite
+```
+GET https://your-app.vercel.app/api/test?test=all&release=2.1.0
+```
+
+### Example Response
+
+The testing endpoint returns detailed JSON responses. For example, the `all` test returns:
+
+```json
+{
+  "test": "all",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "github": {
+    "success": true,
+    "data": {
+      "authenticatedUser": "your-username",
+      "repository": "process.env.GITHUB_OWNER/process.env.GITHUB_REPO",
+      "repositoryUrl": "https://github.com/process.env.GITHUB_OWNER/process.env.GITHUB_REPO"
+    }
+  },
+  "jira": {
+    "success": true,
+    "data": {
+      "authenticatedUser": "Your Name",
+      "userEmail": "you@company.com",
+      "project": "Wordscapes Unity",
+      "projectKey": "process.env.JIRA_PROJECT"
+    }
+  },
+  "release": {
+    "releaseNumber": "2.1.0",
+    "previousRelease": "2.0.0",
+    "github": {
+      "success": true,
+      "commitCount": 15,
+      "commits": [...],
+      "moreCommits": true
+    },
+    "jira": {
+      "success": true,
+      "totalIssues": 25,
+      "searchedIssues": 25,
+      "jqlQuery": "project = process.env.JIRA_PROJECT AND status = Closed AND updated >= \"2024-01-01\"",
+      "sampleIssues": [...]
+    },
+    "crossReference": {
+      "success": true,
+      "totalCommitReferences": 8,
+      "matchedIssues": 3,
+      "releaseChanges": [...]
+    },
+    "announcement": "*Deploying to prod* 🚀\n*Branch:* `releases/2.1.0`\n*Changes:*\n..."
+  },
+  "overall": {
+    "success": true,
+    "readyForProduction": true
+  }
+}
+```
+
+### Using the Testing Endpoint
+
+1. **During Development**: Use the health check to verify your environment variables are set correctly
+2. **Before Deployment**: Run the `all` test to ensure everything is working
+3. **Debugging Issues**: Use individual tests (`github`, `jira`) to isolate problems
+4. **Testing Releases**: Use the `release` test with different version numbers to see what would be announced
+
 ## Security
 
 This bot implements several security measures:
@@ -167,6 +262,18 @@ View logs in the Vercel dashboard under your project's "Functions" tab to debug 
 
 ### Local Testing
 
+#### Option A: Using the Local Testing Script (Recommended)
+
+```bash
+# Run the local testing server
+pnpm test
+# or: node scripts/test-local.js
+```
+
+This will start a local testing server at `http://localhost:3001` with a friendly web interface for testing all bot functionality.
+
+#### Option B: Using Vercel Dev
+
 ```bash
 # Install Vercel CLI
 npm install -g vercel
@@ -175,7 +282,7 @@ npm install -g vercel
 vercel dev
 ```
 
-Your bot will be available at `http://localhost:3000/api/slack` for testing.
+Your bot will be available at `http://localhost:3000/api/slack` for testing, and the testing endpoint at `http://localhost:3000/api/test`.
 
 ### Using ngrok for Slack Testing
 

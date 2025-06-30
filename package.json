@@ -5,7 +5,9 @@
   "main": "api/slack.js",
   "scripts": {
     "dev": "vercel dev",
-    "start": "node api/slack.js"
+    "start": "node api/slack.js",
+    "test": "node scripts/test-local.js",
+    "test:endpoint": "node -e \"console.log('Use the /api/test endpoint for testing')\""
   },
   "dependencies": {
     "@slack/bolt": "^3.17.1",

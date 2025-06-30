@@ -2,6 +2,9 @@
   "functions": {
     "api/slack.js": {
       "maxDuration": 30
+    },
+    "api/test.js": {
+      "maxDuration": 30
     }
   },
   "env": {
