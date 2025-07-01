@@ -146,19 +146,57 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       ];
 
       if (releaseChanges.length > 0) {
-        // Create checkbox options for each change with truncated text for display
+        // Show the full announcement preview first
+        const fullPreview = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${releaseChanges.join('\n')}`;
+        
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*Full announcement preview:*"
+          }
+        });
+        
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: fullPreview
+          }
+        });
+        
+        blocks.push({
+          type: "divider"
+        });
+
+        // Create simplified checkbox options that reference the full text above
         const checkboxOptions = releaseChanges.map((change, index) => {
-          let displayText = change.replace('• ', ''); // Remove bullet point for checkbox display
+          // Extract ticket number or create simple identifier
+          let label = `Change ${index + 1}`;
           
-          // Truncate very long text for checkbox display (Slack has limits)
-          if (displayText.length > 150) {
-            displayText = displayText.substring(0, 147) + '...';
+          // Try to extract JIRA ticket
+          const jiraMatch = change.match(/process.env.JIRA_PROJECT-\d+/);
+          if (jiraMatch) {
+            label = jiraMatch[0];
+          } else {
+            // Try to extract GitHub PR number
+            const githubMatch = change.match(/#(\d+)\)/);
+            if (githubMatch) {
+              label = `PR #${githubMatch[1]}`;
+            }
+          }
+          
+          // Add first few words of commit for context
+          let description = change.replace('• ', '').replace(/<[^>]*>/g, ''); // Remove bullet and links
+          const firstWords = description.split(' ').slice(0, 6).join(' ');
+          if (description.length > firstWords.length) {
+            description = firstWords + '...';
           }
           
           return {
             text: {
-              type: "mrkdwn",
-              text: displayText
+              type: "plain_text",
+              text: `${label}: ${description}`
             },
             value: index.toString()
           };
@@ -168,7 +206,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: "*Select changes to include:*"
+            text: "*Select changes to include (all selected by default):*"
           }
         });
 
@@ -186,7 +224,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
             },
             text: {
               type: "mrkdwn",
-              text: i === 0 ? "Changes:" : "More changes:"
+              text: i === 0 ? "Checkboxes:" : "More:"
             }
           });
         }
