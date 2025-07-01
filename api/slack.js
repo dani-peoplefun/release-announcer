@@ -112,10 +112,10 @@ app.command('/release', async (args) => {
         const matches = allText.match(jiraRegex);
         
         if (matches && matches.length > 0) {
-          // Found JIRA references - link to first one found
+          // Found JIRA references - make the commit title itself clickable
           const firstJiraTicket = matches[0].toUpperCase();
           releaseChanges.push(
-            `• [${firstJiraTicket}](${process.env.JIRA_SERVER}/browse/${firstJiraTicket}) - ${commitTitle}`
+            `• [${commitTitle}](${process.env.JIRA_SERVER}/browse/${firstJiraTicket})`
           );
         } else {
           // No JIRA reference found - just show the commit

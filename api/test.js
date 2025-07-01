@@ -194,7 +194,7 @@ async function testReleaseAnnouncement(releaseNumber) {
       const changesText = releaseChanges
         .map(change => {
           if (change.type === 'jira') {
-            return `• [${change.key}](${change.url}) - ${change.summary}`;
+            return `• [${change.summary}](${change.url})`;
           } else {
             return `• ${change.summary}`;
           }

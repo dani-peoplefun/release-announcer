@@ -113,8 +113,8 @@ The bot will:
 *Deploying to prod* 🚀
 *Branch:* `releases/2.1.0`
 *Changes:*
-• [process.env.JIRA_PROJECT-123](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123) - Fix user login issue
-• [process.env.JIRA_PROJECT-124](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124) - Add new dashboard feature  
+• [process.env.JIRA_PROJECT-123 - Fix user login issue](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123)
+• [process.env.JIRA_PROJECT-124 - Add new dashboard feature](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124)  
 • Refactor authentication module
 • Update documentation
 ```
