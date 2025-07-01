@@ -48,8 +48,9 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
         channel: channel.id,
         user: user.id,
         text: message,
+        as_user: true
       });
-      sentTo = `<#${channel.id}> (only visible to you)`;
+      sentTo = `<#${channel.id}>`;
     }
     
     // Update the original message to show where it was sent
