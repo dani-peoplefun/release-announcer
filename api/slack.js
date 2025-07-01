@@ -1,14 +1,17 @@
 // Import necessary libraries
-const { App } = require('@slack/bolt');
-const { createHmac } = require('crypto');
+const { App, AwsLambdaReceiver } = require('@slack/bolt');
 const { Octokit } = require('@octokit/rest');
 require('dotenv').config();
 
 // --- Initialize clients ---
-// Initialize app without receiver - we'll handle requests manually
+const awsLambdaReceiver = new AwsLambdaReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+});
+
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  receiver: awsLambdaReceiver,
+  processBeforeResponse: true,
 });
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -45,96 +48,15 @@ function getPreviousRelease(releaseNumber) {
   }
 }
 
-// Note: Command and action handlers removed - now handled manually in handleSlackRequest function
+// --- Slash Command Handler ---
+app.command('/release', async ({ command, ack, respond, say }) => {
+  try {
+    await ack();
 
-// --- Manual Signature Verification ---
-function verifySlackSignature(signingSecret, requestSignature, timestamp, body) {
-  // Slack signatures expire after 5 minutes
-  const fiveMinutesAgo = Math.floor(Date.now() / 1000) - (60 * 5);
-  if (parseInt(timestamp) < fiveMinutesAgo) {
-    throw new Error('Request timestamp too old');
-  }
-
-  // Create the signature base string
-  const sigBaseString = `v0:${timestamp}:${body}`;
-  
-  // Create the expected signature
-  const expectedSignature = `v0=${createHmac('sha256', signingSecret)
-    .update(sigBaseString, 'utf8')
-    .digest('hex')}`;
-
-  // Compare signatures
-  if (requestSignature !== expectedSignature) {
-    throw new Error('Invalid signature');
-  }
-}
-
-// --- Request Handler ---
-async function handleSlackRequest(requestBody, headers) {
-  const signature = headers['x-slack-signature'];
-  const timestamp = headers['x-slack-request-timestamp'];
-  
-  // Verify signature
-  verifySlackSignature(process.env.SLACK_SIGNING_SECRET, signature, timestamp, requestBody);
-  
-  // Parse the request
-  const params = new URLSearchParams(requestBody);
-  const payload = Object.fromEntries(params);
-  
-  // Check if it's an interactive component (button click)
-  if (payload.payload) {
-    // Interactive component - parse JSON payload
-    const interactivePayload = JSON.parse(payload.payload);
-    
-    if (interactivePayload.actions && interactivePayload.actions[0]) {
-      const action = interactivePayload.actions[0];
-      
-      if (action.action_id === 'send_announcement') {
-        // Handle send announcement
-        const buttonData = JSON.parse(action.value);
-        const { message, releaseNumber } = buttonData;
-        
-        // Send the announcement to the channel
-        await app.client.chat.postMessage({
-          token: process.env.SLACK_BOT_TOKEN,
-          channel: interactivePayload.channel.id,
-          text: message,
-        });
-        
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            text: `✅ Release announcement for \`${releaseNumber}\` has been sent to the channel.`,
-            response_type: 'ephemeral',
-            replace_original: true
-          }),
-          headers: { 'Content-Type': 'application/json' }
-        };
-        
-      } else if (action.action_id === 'cancel_announcement') {
-        // Handle cancel announcement
-        const releaseNumber = interactivePayload.message?.blocks?.[1]?.text?.text?.match(/releases\/(.+?)`/)?.[1] || 'unknown';
-        
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            text: `❌ Release announcement for \`${releaseNumber}\` was cancelled.`,
-            response_type: 'ephemeral',
-            replace_original: true
-          }),
-          headers: { 'Content-Type': 'application/json' }
-        };
-      }
-    }
-  } else if (payload.command === '/release') {
-    // Slash command - handle via the app
-    const commandText = payload.text?.trim();
+    const commandText = command?.text?.trim();
     if (!commandText) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ text: 'Please provide a release number.' }),
-        headers: { 'Content-Type': 'application/json' }
-      };
+      await respond('Please provide a release number.');
+      return;
     }
 
     // Extract release number
@@ -142,11 +64,8 @@ async function handleSlackRequest(requestBody, headers) {
     const releaseNumber = releaseMatch ? releaseMatch[1].trim() : commandText;
     
     if (!releaseNumber) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ text: 'Please provide a valid release number.' }),
-        headers: { 'Content-Type': 'application/json' }
-      };
+      await respond('Please provide a valid release number.');
+      return;
     }
 
     try {
@@ -197,57 +116,53 @@ async function handleSlackRequest(requestBody, headers) {
         previewMessage = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:* No commits found in this release.`;
       }
 
-      // Return response with buttons
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          text: "Release announcement preview:",
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: "*Preview of release announcement:*"
-              }
-            },
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: previewMessage
-              }
-            },
-            {
-              type: "actions",
-              elements: [
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "✅ Send to Channel"
-                  },
-                  style: "primary",
-                  action_id: "send_announcement",
-                  value: JSON.stringify({
-                    message: previewMessage,
-                    releaseNumber: releaseNumber
-                  })
-                },
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "❌ Cancel"
-                  },
-                  style: "danger",
-                  action_id: "cancel_announcement"
-                }
-              ]
+      // Send confirmation message with buttons
+      await respond({
+        text: "Release announcement preview:",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "*Preview of release announcement:*"
             }
-          ]
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      };
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: previewMessage
+            }
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "✅ Send to Channel"
+                },
+                style: "primary",
+                action_id: "send_announcement",
+                value: JSON.stringify({
+                  message: previewMessage,
+                  releaseNumber: releaseNumber
+                })
+              },
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "❌ Cancel"
+                },
+                style: "danger",
+                action_id: "cancel_announcement"
+              }
+            ]
+          }
+        ]
+      });
 
     } catch (error) {
       console.error('Release announcement error:', error);
@@ -264,39 +179,139 @@ async function handleSlackRequest(requestBody, headers) {
         errorMessage = `❌ An error occurred: ${error.message}`;
       }
       
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ text: errorMessage }),
-        headers: { 'Content-Type': 'application/json' }
-      };
+      await respond(errorMessage);
+    }
+  } catch (outerError) {
+    console.error('Command handler error:', outerError);
+    if (typeof respond === 'function') {
+      try {
+        await respond('An unexpected error occurred. Please try again.');
+      } catch (respondError) {
+        console.error('Failed to send error response:', respondError);
+      }
     }
   }
-  
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ text: 'Unknown request type' }),
-    headers: { 'Content-Type': 'application/json' }
-  };
-}
+});
+
+// --- Interactive Button Handlers ---
+app.action('send_announcement', async ({ ack, body, say, respond }) => {
+  try {
+    await ack();
+    
+    const buttonData = JSON.parse(body.actions[0].value);
+    const { message, releaseNumber } = buttonData;
+    
+    // Send the announcement to the channel
+    await say({
+      text: message,
+      response_type: 'in_channel'
+    });
+    
+    // Update the original message to show it was sent
+    await respond({
+      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to the channel.`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+    
+  } catch (error) {
+    console.error('Send announcement error:', error);
+    await respond({
+      text: `❌ Failed to send announcement: ${error.message}`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+  }
+});
+
+app.action('cancel_announcement', async ({ ack, respond, body }) => {
+  try {
+    await ack();
+    
+    const releaseNumber = body.message?.blocks?.[1]?.text?.text?.match(/releases\/(.+?)`/)?.[1] || 'unknown';
+    
+    await respond({
+      text: `❌ Release announcement for \`${releaseNumber}\` was cancelled.`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+    
+  } catch (error) {
+    console.error('Cancel announcement error:', error);
+    await respond({
+      text: `❌ Failed to cancel announcement: ${error.message}`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+  }
+});
+
+// --- Error handling for unhandled errors ---
+app.error(async (error) => {
+  console.error('Slack app error:', error);
+});
 
 // --- Vercel Export ---
 module.exports = async (req, res) => {
   try {
-    // Get raw body for signature verification
-    let rawBody;
+    // Handle the request body properly for AWS Lambda receiver
+    let body;
     
     if (typeof req.body === 'string') {
-      rawBody = req.body;
+      body = req.body;
     } else if (req.body && typeof req.body === 'object') {
-      rawBody = new URLSearchParams(req.body).toString();
+      // Convert object back to URL-encoded string for signature verification
+      body = new URLSearchParams(req.body).toString();
     } else {
-      rawBody = '';
+      body = '';
     }
 
-    // Handle the Slack request
-    const response = await handleSlackRequest(rawBody, req.headers);
-    
-    res.status(response.statusCode);
+    // Convert Vercel request to AWS Lambda event format
+    const event = {
+      body: body,
+      headers: req.headers,
+      httpMethod: req.method,
+      isBase64Encoded: false,
+      multiValueHeaders: {},
+      multiValueQueryStringParameters: null,
+      path: req.url,
+      pathParameters: null,
+      queryStringParameters: req.query || null,
+      requestContext: {
+        accountId: '',
+        apiId: '',
+        httpMethod: req.method,
+        requestId: '',
+        resourceId: '',
+        resourcePath: req.url,
+        stage: '',
+      },
+      resource: '',
+      stageVariables: null,
+    };
+
+    // AWS Lambda context
+    const context = {
+      callbackWaitsForEmptyEventLoop: false,
+      functionName: 'slack-handler',
+      functionVersion: '$LATEST',
+      invokedFunctionArn: '',
+      memoryLimitInMB: '1024',
+      awsRequestId: 'vercel-' + Date.now(),
+      logGroupName: '',
+      logStreamName: '',
+      getRemainingTimeInMillis: () => 30000,
+      done: () => {},
+      fail: () => {},
+      succeed: () => {},
+    };
+
+    // Get the Lambda handler and process the request
+    const handler = await awsLambdaReceiver.toHandler();
+    const response = await handler(event, context);
+
+    // Send response back to Vercel
+    res.status(response.statusCode || 200);
     
     if (response.headers) {
       Object.entries(response.headers).forEach(([key, value]) => {
@@ -304,7 +319,7 @@ module.exports = async (req, res) => {
       });
     }
     
-    res.send(response.body);
+    res.send(response.body || '');
 
   } catch (error) {
     console.error('Failed to process request:', error);
@@ -314,11 +329,6 @@ module.exports = async (req, res) => {
       headers: req.headers,
       body: typeof req.body === 'string' ? req.body.substring(0, 200) : req.body
     });
-    
-    if (error.message.includes('Invalid signature') || error.message.includes('Request timestamp too old')) {
-      res.status(401).json({ error: 'Unauthorized' });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    res.status(500).json({ error: 'Internal server error' });
   }
 }; 
