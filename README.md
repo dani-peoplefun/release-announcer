@@ -130,6 +130,10 @@ The bot will:
 • <https://github.com/company/repo/pull/125|(#125)>
 ```
 
+**Note on dual references**: If a commit has both JIRA and GitHub references (e.g., "process.env.JIRA_PROJECT-125 - Fix critical bug (#125)"), it creates two separate lines:
+- One for the JIRA ticket with the clean title
+- One for the GitHub PR with just the reference number
+
 **Features:**
 - ✅ **Shows only commits with references** (JIRA tickets or GitHub issues/PRs)
 - ✅ **Bullet point format** for easy reading
