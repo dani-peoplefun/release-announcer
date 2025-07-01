@@ -50,7 +50,7 @@ function getPreviousRelease(releaseNumber) {
 }
 
 // --- Slash Command Handler ---
-app.command('/release-announce', async (args) => {
+app.command('/release', async (args) => {
   try {
     const { command, ack, respond, say } = args;
     

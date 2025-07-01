@@ -4,7 +4,7 @@ A Slack bot that automatically generates release announcements by extracting JIR
 
 ## Features
 
-- 🚀 **Automated Release Announcements**: Generate release summaries with a simple `/release-announce` command
+- 🚀 **Automated Release Announcements**: Generate release summaries with a simple `/release` command
 - 🔗 **GitHub Integration**: Compares release branches to identify commits
 - 🎫 **JIRA Reference Extraction**: Finds JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) in commit messages
 - ✅ **Interactive Confirmation**: Preview and confirm before sending to channel
@@ -14,7 +14,7 @@ A Slack bot that automatically generates release announcements by extracting JIR
 
 ## How It Works
 
-1. **User runs command**: `/release-announce 2.1.0`
+1. **User runs command**: `/release 67`
 2. **GitHub Analysis**: Compares commits between previous release and current release
 3. **JIRA Extraction**: Extracts JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) from commit titles and messages
 4. **Preview & Confirmation**: Shows a preview with interactive buttons to confirm or cancel
@@ -60,7 +60,7 @@ Fill in your actual values in `.env.local`:
 2. Click "Create New App" > "From scratch"
 3. Name your app (e.g., "Release Announcer") and select your workspace
 4. Navigate to "Slash Commands" and create a new command:
-   - **Command**: `/release-announce`
+   - **Command**: `/release`
    - **Request URL**: `https://your-app.vercel.app/api/slack` (you'll get this after deployment)
    - **Short Description**: "Announce a new release"
    - **Usage Hint**: `[release-number]`
