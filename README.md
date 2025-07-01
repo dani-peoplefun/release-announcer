@@ -124,19 +124,19 @@ The bot will:
 *Changes:*
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123|process.env.JIRA_PROJECT-123 - Fix user login issue>
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124|process.env.JIRA_PROJECT-124 - Add new dashboard feature>  
-• <https://github.com/company/repo/pull/544|Fix authentication flow (#544)>
+• Fix authentication flow <https://github.com/company/repo/pull/544|(#544)>
 • Refactor authentication module
 • Update documentation
 ```
 
 **Features:**
-- ✅ **Shows all commits** (with or without JIRA references)
+- ✅ **Shows only commits with references** (JIRA tickets or GitHub issues/PRs)
 - ✅ **Bullet point format** for easy reading
 - ✅ **Interactive confirmation** before posting to channel
 - ✅ **Clickable links** to JIRA tickets or GitHub issues/PRs when referenced
 - ✅ **Smart routing** - sends to the same channel/DM where command was used
 
-**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) first, then GitHub references (e.g., `#544`) in commit titles and messages. Commits without any references are still included in the announcement!
+**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) first, then GitHub references (e.g., `#544`) in commit titles and messages. Only commits with at least one reference are included in the announcement!
 
 ## Testing Endpoint
 

@@ -113,12 +113,10 @@ app.command('/release', async ({ command, ack, respond, say }) => {
             const firstGithubRef = githubMatches[0].replace('#', '');
             const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
             releaseChanges.push(
-              `• <${githubUrl}|${commitTitle}>`
+              `• ${commitTitle} <${githubUrl}|(#${firstGithubRef})>`
             );
-          } else {
-            // No references found - just show the commit title
-            releaseChanges.push(`• ${commitTitle}`);
           }
+          // Skip commits with no references (don't add to releaseChanges)
         }
       }
 

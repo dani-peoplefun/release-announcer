@@ -184,25 +184,21 @@ async function testReleaseAnnouncement(releaseNumber) {
             commitAuthor: commit.commit.author.name,
             allGithubRefs: githubMatches,
           });
-        } else {
-          // No references found - still include the commit
-          releaseChanges.push({
-            type: 'commit',
-            key: null,
-            summary: commitTitle,
-            url: null,
-            commitSha: commitSha,
-            commitAuthor: commit.commit.author.name,
-          });
         }
+        // Skip commits with no references (don't add to releaseChanges)
       }
     }
 
+    const commitsWithGithub = releaseChanges.filter(change => change.type === 'github').length;
+    const commitsSkipped = commits.length - releaseChanges.length;
+    
     results.jiraExtraction = {
       success: true,
-      totalCommits: releaseChanges.length,
+      totalCommits: commits.length,
+      commitsIncluded: releaseChanges.length,
+      commitsSkipped: commitsSkipped,
       commitsWithJira: commitsWithJira,
-      commitsWithoutJira: releaseChanges.length - commitsWithJira,
+      commitsWithGithub: commitsWithGithub,
       totalJiraReferences,
       releaseChanges,
       regex: jiraRegex.toString(),
@@ -212,8 +208,10 @@ async function testReleaseAnnouncement(releaseNumber) {
     if (releaseChanges.length > 0) {
       const changesText = releaseChanges
         .map(change => {
-          if (change.type === 'jira' || change.type === 'github') {
+          if (change.type === 'jira') {
             return `• <${change.url}|${change.summary}>`;
+          } else if (change.type === 'github') {
+            return `• ${change.summary} <${change.url}|(#${change.key})>`;
           } else {
             return `• ${change.summary}`;
           }
