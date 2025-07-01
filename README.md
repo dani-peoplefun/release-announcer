@@ -111,16 +111,16 @@ The bot will:
 2. Extract JIRA ticket references from commit messages
 3. Show a preview with confirmation buttons
 4. Send the announcement when you click "✅ Send Announcement":
-   - **If used in a channel**: Posts the announcement as an ephemeral message (only visible to you)
-   - **If used in a DM**: Sends the announcement as a DM to you
+   - **If used in a channel**: Posts the announcement to that same channel
+   - **If used in a DM**: Sends the announcement to that same DM
 
 **Example announcement format:**
 ```
 *Deploying to prod* 🚀
 *Branch:* `releases/2.1.0`
 *Changes:*
-• [process.env.JIRA_PROJECT-123 - Fix user login issue](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123)
-• [process.env.JIRA_PROJECT-124 - Add new dashboard feature](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124)  
+• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123|process.env.JIRA_PROJECT-123 - Fix user login issue>
+• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124|process.env.JIRA_PROJECT-124 - Add new dashboard feature>  
 • Refactor authentication module
 • Update documentation
 ```
@@ -130,8 +130,7 @@ The bot will:
 - ✅ **Bullet point format** for easy reading
 - ✅ **Interactive confirmation** before posting to channel
 - ✅ **Clickable JIRA links** when tickets are referenced
-- ✅ **Smart routing** - sends to channel if used in channel, DM if used in DM
-- ✅ **Private announcements** - ephemeral messages in channels (only visible to you)
+- ✅ **Smart routing** - sends to the same channel/DM where command was used
 
 **Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) in commit titles and messages. Commits without JIRA references are still included in the announcement!
 

@@ -100,7 +100,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         if (matches && matches.length > 0) {
           const firstJiraTicket = matches[0].toUpperCase();
           releaseChanges.push(
-            `• [${commitTitle}](${process.env.JIRA_SERVER}/browse/${firstJiraTicket})`
+            `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${commitTitle}>`
           );
         } else {
           releaseChanges.push(`• ${commitTitle}`);

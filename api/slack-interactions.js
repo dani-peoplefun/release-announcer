@@ -35,21 +35,15 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     
     let sentTo;
     
+    // Send the announcement to the same channel/DM where the original command was used
+    await client.chat.postMessage({
+      channel: channel.id,
+      text: message,
+    });
+    
     if (isDM) {
-      // If original command was in DM, send as DM to the user
-      await client.chat.postMessage({
-        channel: user.id,
-        text: message,
-      });
       sentTo = 'your DMs';
     } else {
-      // If original command was in a channel, send as ephemeral message (only visible to you)
-      await client.chat.postEphemeral({
-        channel: channel.id,
-        user: user.id,
-        text: message,
-        as_user: true
-      });
       sentTo = `<#${channel.id}>`;
     }
     
