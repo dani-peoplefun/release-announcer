@@ -23,26 +23,35 @@ const JIRA_PROJECT = 'process.env.JIRA_PROJECT';
 
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
-  // This is a simplified example. You may need more complex logic.
-  const parts = releaseNumber.split('.');
-  if (parts.length > 1) {
-    const minorVersion = parseInt(parts[1], 10);
-    if (minorVersion > 0) {
-      return `${parts[0]}.${minorVersion - 1}`;
+  // Handle different release numbering schemes
+  
+  // Check if it's a semantic version (e.g., "2.1.0")
+  if (releaseNumber.includes('.')) {
+    const parts = releaseNumber.split('.');
+    if (parts.length > 1) {
+      const minorVersion = parseInt(parts[1], 10);
+      if (minorVersion > 0) {
+        return `${parts[0]}.${minorVersion - 1}`;
+      }
     }
+    const majorVersion = parseInt(parts[0], 10);
+    return (majorVersion - 1).toString();
+  } else {
+    // Handle simple numeric releases (e.g., "67" -> "66")
+    const currentNumber = parseInt(releaseNumber, 10);
+    if (isNaN(currentNumber)) {
+      throw new Error(`Invalid release number format: ${releaseNumber}`);
+    }
+    if (currentNumber <= 1) {
+      throw new Error(`Cannot determine previous release for release number: ${releaseNumber}`);
+    }
+    return (currentNumber - 1).toString();
   }
-  const majorVersion = parseInt(parts[0], 10);
-  return (majorVersion - 1).toString();
 }
 
 // --- Slash Command Handler ---
 app.command('/release-announce', async (args) => {
   try {
-    // Debug: Log what we're receiving
-    console.log('Command handler args:', Object.keys(args));
-    console.log('ack type:', typeof args.ack);
-    console.log('command:', args.command);
-    
     const { command, ack, respond, say } = args;
     
     // Acknowledge the command immediately
@@ -53,15 +62,27 @@ app.command('/release-announce', async (args) => {
       return;
     }
 
-    const releaseNumber = command?.text?.trim();
-    if (!releaseNumber) {
+    const commandText = command?.text?.trim();
+    if (!commandText) {
       await respond('Please provide a release number.');
       return;
     }
 
+    // Extract release number from command text (handle cases like "/release 67" or just "67")
+    const releaseMatch = commandText.match(/(?:\/release\s+)?(.+)/);
+    const releaseNumber = releaseMatch ? releaseMatch[1].trim() : commandText;
+    
+    if (!releaseNumber) {
+      await respond('Please provide a valid release number.');
+      return;
+    }
+
+
+
     try {
       // --- 1. Get commits from GitHub ---
       const previousRelease = getPreviousRelease(releaseNumber);
+      
       const { data: comparison } = await octokit.repos.compareCommits({
         owner: GITHUB_OWNER,
         repo: GITHUB_REPO,
@@ -111,7 +132,18 @@ app.command('/release-announce', async (args) => {
 
     } catch (error) {
       console.error('Release announcement error:', error);
-      await respond(`An error occurred: ${error.message}`);
+      
+      // Provide more helpful error messages
+      if (error.status === 404) {
+        const previousRelease = getPreviousRelease(releaseNumber);
+        await respond(`❌ Could not find release branches in GitHub.\n\nPlease check that these branches exist:\n• \`releases/${previousRelease}\` (previous release)\n• \`releases/${releaseNumber}\` (current release)\n\nRepository: \`${GITHUB_OWNER}/${GITHUB_REPO}\``);
+      } else if (error.message.includes('Invalid release number format')) {
+        await respond(`❌ Invalid release number format: \`${releaseNumber}\`\n\nPlease provide a valid release number (e.g., "67" or "2.1.0").`);
+      } else if (error.message.includes('Cannot determine previous release')) {
+        await respond(`❌ Cannot determine previous release for: \`${releaseNumber}\`\n\nRelease numbers must be greater than 1.`);
+      } else {
+        await respond(`❌ An error occurred: ${error.message}`);
+      }
     }
   } catch (outerError) {
     console.error('Command handler error:', outerError);

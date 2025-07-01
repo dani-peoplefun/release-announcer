@@ -11,15 +11,30 @@ const JIRA_PROJECT = 'process.env.JIRA_PROJECT';
 
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
-  const parts = releaseNumber.split('.');
-  if (parts.length > 1) {
-    const minorVersion = parseInt(parts[1], 10);
-    if (minorVersion > 0) {
-      return `${parts[0]}.${minorVersion - 1}`;
+  // Handle different release numbering schemes
+  
+  // Check if it's a semantic version (e.g., "2.1.0")
+  if (releaseNumber.includes('.')) {
+    const parts = releaseNumber.split('.');
+    if (parts.length > 1) {
+      const minorVersion = parseInt(parts[1], 10);
+      if (minorVersion > 0) {
+        return `${parts[0]}.${minorVersion - 1}`;
+      }
     }
+    const majorVersion = parseInt(parts[0], 10);
+    return (majorVersion - 1).toString();
+  } else {
+    // Handle simple numeric releases (e.g., "67" -> "66")
+    const currentNumber = parseInt(releaseNumber, 10);
+    if (isNaN(currentNumber)) {
+      throw new Error(`Invalid release number format: ${releaseNumber}`);
+    }
+    if (currentNumber <= 1) {
+      throw new Error(`Cannot determine previous release for release number: ${releaseNumber}`);
+    }
+    return (currentNumber - 1).toString();
   }
-  const majorVersion = parseInt(parts[0], 10);
-  return (majorVersion - 1).toString();
 }
 
 // --- Test functions ---
