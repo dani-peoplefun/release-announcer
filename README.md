@@ -20,8 +20,9 @@ A Slack bot that automatically generates release announcements by extracting JIR
    - First looks for JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) in commit titles and messages
    - If no JIRA found, looks for GitHub issue/PR references (e.g., #544)
    - Creates clickable links for both JIRA tickets and GitHub issues/PRs
-4. **Preview & Confirmation**: Shows a preview with interactive buttons to confirm or cancel
-5. **Slack Announcement**: Posts the formatted message to the channel upon confirmation
+4. **Interactive Selection**: Shows checkboxes for each change so you can select which ones to include
+5. **Preview & Confirmation**: Shows a preview with interactive buttons to confirm or cancel
+6. **Slack Announcement**: Posts the formatted message to the channel upon confirmation
 
 ## Prerequisites
 
@@ -112,8 +113,9 @@ In any Slack channel where the bot is installed:
 The bot will:
 1. Compare `releases/2.0` with `releases/2.1.0` branches
 2. Extract JIRA ticket references from commit messages
-3. Show a preview with confirmation buttons
-4. Send the announcement when you click "✅ Send Announcement":
+3. Show an interactive preview with checkboxes for each change
+4. Allow you to select/deselect which changes to include
+5. Send the announcement when you click "✅ Send Selected Changes":
    - **If used in a channel**: Posts the announcement to that same channel
    - **If used in a DM**: Sends the announcement to that same DM
 
@@ -133,12 +135,13 @@ The bot will:
 
 **Features:**
 - ✅ **Shows only commits with references** (JIRA tickets or GitHub issues/PRs)
+- ✅ **Interactive selection** - choose which changes to include via checkboxes
 - ✅ **Bullet point format** for easy reading
 - ✅ **Interactive confirmation** before posting to channel
 - ✅ **Clickable links** to JIRA tickets or GitHub issues/PRs when referenced
 - ✅ **Smart routing** - sends to the same channel/DM where command was used
 
-**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) first, then GitHub references (e.g., `#544`) in commit titles and messages. Only commits with at least one reference are included in the announcement!
+**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) first, then GitHub references (e.g., `#544`) in commit titles and messages. Only commits with at least one reference are shown in the preview, and you can select which ones to include in the final announcement!
 
 ## Testing Endpoint
 

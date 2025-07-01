@@ -26,7 +26,35 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     await ack();
     
     const buttonData = JSON.parse(body.actions[0].value);
-    const { message, releaseNumber } = buttonData;
+    const { allChanges, releaseNumber, channelId, channelName } = buttonData;
+    
+    // Get selected changes from checkboxes
+    let selectedChanges = [];
+    const checkboxStates = body.state?.values || {};
+    
+    // Extract selected changes from all checkbox groups
+    Object.keys(checkboxStates).forEach(blockId => {
+      Object.keys(checkboxStates[blockId]).forEach(actionId => {
+        if (actionId.startsWith('select_changes_')) {
+          const selectedOptions = checkboxStates[blockId][actionId].selected_options || [];
+          selectedOptions.forEach(option => {
+            const changeIndex = parseInt(option.value);
+            if (changeIndex >= 0 && changeIndex < allChanges.length) {
+              selectedChanges.push(allChanges[changeIndex]);
+            }
+          });
+        }
+      });
+    });
+    
+    // Create the announcement message
+    let message;
+    if (selectedChanges.length > 0) {
+      const changesText = selectedChanges.join('\n');
+      message = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
+    } else {
+      message = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:* No changes selected.`;
+    }
     
     // Determine where to send the announcement
     const channel = body.channel;
@@ -76,8 +104,10 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     }
     
     // Update the original message to show where it was sent
+    const selectedCount = selectedChanges.length;
+    const totalCount = allChanges.length;
     await respond({
-      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to ${sentTo}.`,
+      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to ${sentTo}.\n\n*Included:* ${selectedCount} of ${totalCount} changes`,
       response_type: 'ephemeral',
       replace_original: true
     });
@@ -111,6 +141,18 @@ app.action('cancel_announcement', async ({ ack, respond, body }) => {
       response_type: 'ephemeral',
       replace_original: true
     });
+  }
+});
+
+// --- Checkbox Handlers ---
+// Handle checkbox selections (these don't need to do anything special, just acknowledge)
+app.action(/select_changes_\d+/, async ({ ack }) => {
+  try {
+    await ack();
+    // No need to respond - checkboxes handle their own state
+  } catch (error) {
+    console.error('Checkbox selection error:', error);
+    await ack();
   }
 });
 

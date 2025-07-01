@@ -127,62 +127,106 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         // Skip commits with no references (don't add to releaseChanges)
       }
 
-      // Create confirmation message
-      let previewMessage;
+      // Create interactive preview with checkboxes
+      const blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*Release Announcement Preview*"
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Branch:* \`releases/${releaseNumber}\``
+          }
+        }
+      ];
+
       if (releaseChanges.length > 0) {
-        const changesText = releaseChanges.join('\n');
-        previewMessage = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
+        // Create checkbox options for each change
+        const checkboxOptions = releaseChanges.map((change, index) => ({
+          text: {
+            type: "mrkdwn",
+            text: change.replace('• ', '') // Remove bullet point for checkbox display
+          },
+          value: index.toString()
+        }));
+
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*Select changes to include:*"
+          }
+        });
+
+        // Add checkboxes in groups (Slack limits to 10 options per checkbox group)
+        const maxOptionsPerGroup = 10;
+        for (let i = 0; i < checkboxOptions.length; i += maxOptionsPerGroup) {
+          const optionsGroup = checkboxOptions.slice(i, i + maxOptionsPerGroup);
+          blocks.push({
+            type: "section",
+            accessory: {
+              type: "checkboxes",
+              action_id: `select_changes_${Math.floor(i / maxOptionsPerGroup)}`,
+              initial_options: optionsGroup, // All checked by default
+              options: optionsGroup
+            },
+            text: {
+              type: "mrkdwn",
+              text: i === 0 ? "Changes:" : "More changes:"
+            }
+          });
+        }
       } else {
-        previewMessage = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:* No commits found in this release.`;
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*Changes:* No commits found in this release."
+          }
+        });
       }
 
-      // Send confirmation message with buttons (ephemeral - only visible to user)
+      // Add action buttons
+      blocks.push({
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "✅ Send Selected Changes"
+            },
+            style: "primary",
+            action_id: "send_announcement",
+            value: JSON.stringify({
+              allChanges: releaseChanges,
+              releaseNumber: releaseNumber,
+              channelId: command.channel_id,
+              channelName: command.channel_name
+            })
+          },
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "❌ Cancel"
+            },
+            style: "danger",
+            action_id: "cancel_announcement"
+          }
+        ]
+      });
+
+      // Send interactive preview (ephemeral - only visible to user)
       await respond({
         text: "Release announcement preview:",
         response_type: 'ephemeral',
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "*Preview of release announcement:*"
-            }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: previewMessage
-            }
-          },
-          {
-            type: "actions",
-            elements: [
-                              {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "✅ Send Announcement"
-                  },
-                  style: "primary",
-                  action_id: "send_announcement",
-                  value: JSON.stringify({
-                    message: previewMessage,
-                    releaseNumber: releaseNumber
-                  })
-                },
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "❌ Cancel"
-                },
-                style: "danger",
-                action_id: "cancel_announcement"
-              }
-            ]
-          }
-        ]
+        blocks: blocks
       });
 
     } catch (error) {
