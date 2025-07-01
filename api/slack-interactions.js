@@ -35,16 +35,44 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     
     let sentTo;
     
-    // Send the announcement to the same channel/DM where the original command was used
-    await client.chat.postMessage({
-      channel: channel.id,
-      text: message,
-    });
+    console.log('Channel info:', { channelId: channel.id, channelName: channel.name, isDM });
     
-    if (isDM) {
-      sentTo = 'your DMs';
-    } else {
-      sentTo = `<#${channel.id}>`;
+    try {
+      if (isDM) {
+        // For DMs, send directly to the user
+        await client.chat.postMessage({
+          channel: user.id,
+          text: message,
+        });
+        sentTo = 'your DMs';
+      } else {
+        // For channels, check if bot has access first
+        try {
+          await client.conversations.info({
+            channel: channel.id
+          });
+          
+          // Bot has access to channel, send the message
+          await client.chat.postMessage({
+            channel: channel.id,
+            text: message,
+          });
+          sentTo = `<#${channel.id}>`;
+        } catch (accessError) {
+          console.log('No direct channel access, falling back to ephemeral message');
+          
+          // Fallback to ephemeral message if bot can't post to channel
+          await client.chat.postEphemeral({
+            channel: channel.id,
+            user: user.id,
+            text: `⚠️ Bot doesn't have permission to post to this channel. Here's your announcement:\n\n${message}`,
+          });
+          sentTo = `<#${channel.id}> (as ephemeral message - bot needs to be added to channel)`;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      throw new Error(`Unable to send announcement: ${error.message}`);
     }
     
     // Update the original message to show where it was sent
