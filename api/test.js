@@ -5,10 +5,6 @@ require('dotenv').config();
 // --- Initialize clients ---
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-const GITHUB_OWNER = 'process.env.GITHUB_OWNER';
-const GITHUB_REPO = 'process.env.GITHUB_REPO';
-const JIRA_PROJECT = 'process.env.JIRA_PROJECT';
-
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
   // Handle different release numbering schemes
@@ -42,8 +38,8 @@ async function testGitHubConnection() {
   try {
     const { data: user } = await octokit.users.getAuthenticated();
     const { data: repo } = await octokit.repos.get({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: process.env.GITHUB_OWNER,
+      repo: process.env.GITHUB_REPO,
     });
     
     return {
@@ -70,7 +66,7 @@ async function testJiraConnection() {
       throw new Error('JIRA_SERVER environment variable not set');
     }
 
-    if (!JIRA_PROJECT) {
+    if (!process.env.JIRA_PROJECT) {
       throw new Error('JIRA_PROJECT not configured');
     }
 
@@ -83,9 +79,9 @@ async function testJiraConnection() {
       success: true,
       data: {
         jiraServer: jiraUrl,
-        projectKey: JIRA_PROJECT,
-        projectUrl: `${jiraUrl}/projects/${JIRA_PROJECT}`,
-        extractionRegex: `\\b${JIRA_PROJECT}-\\d+\\b`,
+        projectKey: process.env.JIRA_PROJECT,
+        projectUrl: `${jiraUrl}/projects/${process.env.JIRA_PROJECT}`,
+        extractionRegex: `\\b${process.env.JIRA_PROJECT}-\\d+\\b`,
         note: 'JIRA connection test validates configuration only (no API calls needed)',
       }
     };
@@ -111,8 +107,8 @@ async function testReleaseAnnouncement(releaseNumber) {
     // --- 1. Test GitHub comparison ---
     const previousRelease = getPreviousRelease(releaseNumber);
     const { data: comparison } = await octokit.repos.compareCommits({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: process.env.GITHUB_OWNER,
+      repo: process.env.GITHUB_REPO,
       base: `releases/${previousRelease}`,
       head: `releases/${releaseNumber}`,
     });
@@ -132,7 +128,7 @@ async function testReleaseAnnouncement(releaseNumber) {
     // --- 2. Process commits and extract JIRA references ---
     const releaseChanges = [];
     const processedCommits = new Set();
-    const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
+    const jiraRegex = new RegExp(`\\b${process.env.JIRA_PROJECT}-\\d+\\b`, 'gi');
     let totalJiraReferences = 0;
     let commitsWithJira = 0;
 

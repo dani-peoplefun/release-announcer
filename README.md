@@ -186,8 +186,8 @@ The testing endpoint returns detailed JSON responses. For example, the `all` tes
     "success": true,
     "data": {
       "authenticatedUser": "your-username",
-      "repository": "process.env.GITHUB_OWNER/process.env.GITHUB_REPO",
-      "repositoryUrl": "https://github.com/process.env.GITHUB_OWNER/process.env.GITHUB_REPO"
+      "repository": "your-repo/your-project",
+      "repositoryUrl": "https://github.com/your-repo/your-project"
     }
   },
   "jira": {

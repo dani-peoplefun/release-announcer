@@ -16,10 +16,6 @@ const app = new App({
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-const GITHUB_OWNER = 'process.env.GITHUB_OWNER';
-const GITHUB_REPO = 'process.env.GITHUB_REPO';
-const JIRA_PROJECT = 'process.env.JIRA_PROJECT';
-
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
   // Handle different release numbering schemes
@@ -73,8 +69,8 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       const previousRelease = getPreviousRelease(releaseNumber);
       
       const { data: comparison } = await octokit.repos.compareCommits({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: process.env.GITHUB_OWNER,
+        repo: process.env.GITHUB_REPO,
         base: `releases/${previousRelease}`,
         head: `releases/${releaseNumber}`,
       });
@@ -82,7 +78,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       // Process commits and extract JIRA references
       const releaseChanges = [];
       const processedCommits = new Set();
-      const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
+      const jiraRegex = new RegExp(`\\b${process.env.JIRA_PROJECT}-\\d+\\b`, 'gi');
 
       for (const commit of comparison.commits) {
         const commitSha = commit.sha.substring(0, 7);
@@ -109,7 +105,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           // Append GitHub link if GitHub reference found
           if (githubMatches && githubMatches.length > 0) {
             const firstGithubRef = githubMatches[0].replace('#', '');
-            const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+            const githubUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/pull/${firstGithubRef}`;
             changeText += ` <${githubUrl}|(#${firstGithubRef})>`;
           }
           
@@ -117,7 +113,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         } else if (githubMatches && githubMatches.length > 0) {
           // No JIRA but found GitHub reference
           const firstGithubRef = githubMatches[0].replace('#', '');
-          const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+          const githubUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/pull/${firstGithubRef}`;
           // Remove the GitHub reference from the title since it's already in the link
           const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
           releaseChanges.push(
@@ -296,7 +292,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       let errorMessage;
       if (error.status === 404) {
         const previousRelease = getPreviousRelease(releaseNumber);
-        errorMessage = `❌ Could not find release branches in GitHub.\n\nPlease check that these branches exist:\n• \`releases/${previousRelease}\` (previous release)\n• \`releases/${releaseNumber}\` (current release)\n\nRepository: \`${GITHUB_OWNER}/${GITHUB_REPO}\``;
+        errorMessage = `❌ Could not find release branches in GitHub.\n\nPlease check that these branches exist:\n• \`releases/${previousRelease}\` (previous release)\n• \`releases/${releaseNumber}\` (current release)\n\nRepository: \`${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}\``;
       } else if (error.message.includes('Invalid release number format')) {
         errorMessage = `❌ Invalid release number format: \`${releaseNumber}\`\n\nPlease provide a valid release number (e.g., "67" or "2.1.0").`;
       } else if (error.message.includes('Cannot determine previous release')) {
