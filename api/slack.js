@@ -1,17 +1,18 @@
 // Import necessary libraries
-const { App, HTTPReceiver } = require('@slack/bolt');
+const { App, AwsLambdaReceiver } = require('@slack/bolt');
 const { Octokit } = require('@octokit/rest');
 require('dotenv').config();
 
 // --- Initialize clients ---
-// Use HTTPReceiver for better Vercel compatibility
-const receiver = new HTTPReceiver({
+// Use AwsLambdaReceiver for serverless environments
+const awsLambdaReceiver = new AwsLambdaReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  receiver: receiver,
+  receiver: awsLambdaReceiver,
+  processBeforeResponse: true,
 });
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -274,8 +275,74 @@ app.error(async (error) => {
 // This exports the app handler for Vercel's serverless environment
 module.exports = async (req, res) => {
   try {
-    // Use the HTTPReceiver to handle the request directly
-    await receiver.requestHandler(req, res);
+    // Handle the request body properly for signature verification
+    let body;
+    
+    if (typeof req.body === 'string') {
+      // Body is already a string
+      body = req.body;
+    } else if (req.body && typeof req.body === 'object') {
+      // Body is parsed object - convert back to URL-encoded string
+      body = new URLSearchParams(req.body).toString();
+    } else {
+      body = '';
+    }
+
+    // Convert Vercel request to AWS Lambda event format
+    const event = {
+      body: body,
+      headers: req.headers,
+      httpMethod: req.method,
+      isBase64Encoded: false,
+      multiValueHeaders: {},
+      multiValueQueryStringParameters: null,
+      path: req.url,
+      pathParameters: null,
+      queryStringParameters: req.query || null,
+      requestContext: {
+        accountId: '',
+        apiId: '',
+        httpMethod: req.method,
+        requestId: '',
+        resourceId: '',
+        resourcePath: req.url,
+        stage: '',
+      },
+      resource: '',
+      stageVariables: null,
+    };
+
+    // AWS Lambda context
+    const context = {
+      callbackWaitsForEmptyEventLoop: false,
+      functionName: 'slack-handler',
+      functionVersion: '$LATEST',
+      invokedFunctionArn: '',
+      memoryLimitInMB: '1024',
+      awsRequestId: 'vercel-' + Date.now(),
+      logGroupName: '',
+      logStreamName: '',
+      getRemainingTimeInMillis: () => 30000,
+      done: () => {},
+      fail: () => {},
+      succeed: () => {},
+    };
+
+    // Get the Lambda handler and process the request
+    const handler = await awsLambdaReceiver.toHandler();
+    const response = await handler(event, context);
+
+    // Send response back to Vercel
+    res.status(response.statusCode || 200);
+    
+    if (response.headers) {
+      Object.entries(response.headers).forEach(([key, value]) => {
+        res.setHeader(key, value);
+      });
+    }
+    
+    res.send(response.body || '');
+
   } catch (error) {
     console.error('Failed to process request:', error);
     console.error('Request details:', {
