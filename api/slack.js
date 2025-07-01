@@ -146,14 +146,23 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       ];
 
       if (releaseChanges.length > 0) {
-        // Create checkbox options for each change
-        const checkboxOptions = releaseChanges.map((change, index) => ({
-          text: {
-            type: "mrkdwn",
-            text: change.replace('• ', '') // Remove bullet point for checkbox display
-          },
-          value: index.toString()
-        }));
+        // Create checkbox options for each change with truncated text for display
+        const checkboxOptions = releaseChanges.map((change, index) => {
+          let displayText = change.replace('• ', ''); // Remove bullet point for checkbox display
+          
+          // Truncate very long text for checkbox display (Slack has limits)
+          if (displayText.length > 150) {
+            displayText = displayText.substring(0, 147) + '...';
+          }
+          
+          return {
+            text: {
+              type: "mrkdwn",
+              text: displayText
+            },
+            value: index.toString()
+          };
+        });
 
         blocks.push({
           type: "section",
@@ -223,11 +232,25 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       });
 
       // Send interactive preview (ephemeral - only visible to user)
-      await respond({
-        text: "Release announcement preview:",
-        response_type: 'ephemeral',
-        blocks: blocks
-      });
+      try {
+        await respond({
+          text: "Release announcement preview:",
+          response_type: 'ephemeral',
+          blocks: blocks
+        });
+      } catch (slackError) {
+        console.error('Slack blocks error:', slackError);
+        
+        // If blocks are invalid, send a simple fallback message
+        if (slackError.message?.includes('invalid_blocks') || slackError.data === 'invalid_blocks') {
+          await respond({
+            text: `❌ Unable to display interactive preview due to text length limits.\n\nFound ${releaseChanges.length} changes for release \`${releaseNumber}\`.\n\nPlease try using the test endpoint at \`/api/test?test=release&release=${releaseNumber}\` to view the changes.`,
+            response_type: 'ephemeral'
+          });
+        } else {
+          throw slackError; // Re-throw if it's a different error
+        }
+      }
 
     } catch (error) {
       console.error('Release announcement error:', error);
