@@ -2,6 +2,13 @@
 const { App, AwsLambdaReceiver } = require('@slack/bolt');
 require('dotenv').config();
 
+// Disable Vercel's body parser to get raw body for signature verification
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 // --- Initialize clients for interactions only ---
 const awsLambdaReceiver = new AwsLambdaReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -71,20 +78,27 @@ app.error(async (error) => {
   console.error('Slack interactions error:', error);
 });
 
+// --- Helper function to get raw body ---
+function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      resolve(body);
+    });
+    req.on('error', err => {
+      reject(err);
+    });
+  });
+}
+
 // --- Vercel Export for Interactions ---
 module.exports = async (req, res) => {
   try {
-    // Handle the request body properly for AWS Lambda receiver
-    let body;
-    
-    if (typeof req.body === 'string') {
-      body = req.body;
-    } else if (req.body && typeof req.body === 'object') {
-      // Convert object back to URL-encoded string for signature verification
-      body = new URLSearchParams(req.body).toString();
-    } else {
-      body = '';
-    }
+    // Get the raw body since body parser is disabled
+    const body = await getRawBody(req);
 
     // Convert Vercel request to AWS Lambda event format
     const event = {
