@@ -104,18 +104,16 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           const firstJiraTicket = jiraMatches[0].toUpperCase();
           // Remove GitHub reference from title for clean JIRA link
           const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
-          releaseChanges.push(
-            `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${cleanTitle}>`
-          );
+          let changeText = `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${cleanTitle}>`;
           
-          // Also add GitHub link if GitHub reference found
+          // Append GitHub link if GitHub reference found
           if (githubMatches && githubMatches.length > 0) {
             const firstGithubRef = githubMatches[0].replace('#', '');
             const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
-            releaseChanges.push(
-              `• <${githubUrl}|(#${firstGithubRef})>`
-            );
+            changeText += ` <${githubUrl}|(#${firstGithubRef})>`;
           }
+          
+          releaseChanges.push(changeText);
         } else if (githubMatches && githubMatches.length > 0) {
           // No JIRA but found GitHub reference
           const firstGithubRef = githubMatches[0].replace('#', '');

@@ -161,7 +161,8 @@ async function testReleaseAnnouncement(releaseNumber) {
         const firstJiraTicket = jiraMatches[0].toUpperCase();
         // Remove GitHub reference from title for clean JIRA link
         const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
-        releaseChanges.push({
+        
+        const changeEntry = {
           type: 'jira',
           key: firstJiraTicket,
           summary: cleanTitle,
@@ -169,22 +170,18 @@ async function testReleaseAnnouncement(releaseNumber) {
           commitSha: commitSha,
           commitAuthor: commit.commit.author.name,
           allJiraRefs: jiraMatches.map(m => m.toUpperCase()),
-        });
+        };
         
-        // Also add GitHub link if GitHub reference found
+        // Add GitHub info if GitHub reference found
         if (githubMatches && githubMatches.length > 0) {
           const firstGithubRef = githubMatches[0].replace('#', '');
           const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
-          releaseChanges.push({
-            type: 'github',
-            key: firstGithubRef,
-            summary: `(#${firstGithubRef})`,
-            url: githubUrl,
-            commitSha: commitSha,
-            commitAuthor: commit.commit.author.name,
-            allGithubRefs: githubMatches,
-          });
+          changeEntry.githubKey = firstGithubRef;
+          changeEntry.githubUrl = githubUrl;
+          changeEntry.allGithubRefs = githubMatches;
         }
+        
+        releaseChanges.push(changeEntry);
       } else if (githubMatches && githubMatches.length > 0) {
         // No JIRA but found GitHub reference
         const firstGithubRef = githubMatches[0].replace('#', '');
@@ -224,7 +221,12 @@ async function testReleaseAnnouncement(releaseNumber) {
       const changesText = releaseChanges
         .map(change => {
           if (change.type === 'jira') {
-            return `• <${change.url}|${change.summary}>`;
+            let changeText = `• <${change.url}|${change.summary}>`;
+            // Append GitHub link if present
+            if (change.githubUrl) {
+              changeText += ` <${change.githubUrl}|(#${change.githubKey})>`;
+            }
+            return changeText;
           } else if (change.type === 'github') {
             return `• ${change.summary} <${change.url}|(#${change.key})>`;
           } else {

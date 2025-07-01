@@ -124,15 +124,12 @@ The bot will:
 *Changes:*
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123|process.env.JIRA_PROJECT-123 - Fix user login issue>
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124|process.env.JIRA_PROJECT-124 - Add new dashboard feature>
-• <https://github.com/company/repo/pull/544|(#544)>
 • Fix authentication flow <https://github.com/company/repo/pull/789|(#789)>
-• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-125|Fix critical bug>
-• <https://github.com/company/repo/pull/125|(#125)>
+• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-125|Fix critical bug> <https://github.com/company/repo/pull/125|(#125)>
 ```
 
-**Note on dual references**: If a commit has both JIRA and GitHub references (e.g., "process.env.JIRA_PROJECT-125 - Fix critical bug (#125)"), it creates two separate lines:
-- One for the JIRA ticket with the clean title
-- One for the GitHub PR with just the reference number
+**Note on dual references**: If a commit has both JIRA and GitHub references (e.g., "process.env.JIRA_PROJECT-125 - Fix critical bug (#125)"), they appear on the same line:
+- The JIRA ticket link with the clean title, followed by the GitHub PR link
 
 **Features:**
 - ✅ **Shows only commits with references** (JIRA tickets or GitHub issues/PRs)
