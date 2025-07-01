@@ -175,10 +175,12 @@ async function testReleaseAnnouncement(releaseNumber) {
           // Found GitHub reference - link to first PR/issue found
           const firstGithubRef = githubMatches[0].replace('#', '');
           const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+          // Remove the GitHub reference from the title since it's already in the link
+          const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
           releaseChanges.push({
             type: 'github',
             key: firstGithubRef,
-            summary: commitTitle,
+            summary: cleanTitle,
             url: githubUrl,
             commitSha: commitSha,
             commitAuthor: commit.commit.author.name,
