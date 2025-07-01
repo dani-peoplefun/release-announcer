@@ -21,22 +21,39 @@ const app = new App({
 });
 
 // --- Interactive Button Handlers ---
-app.action('send_announcement', async ({ ack, body, say, respond }) => {
+app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
   try {
     await ack();
     
     const buttonData = JSON.parse(body.actions[0].value);
     const { message, releaseNumber } = buttonData;
     
-    // Send the announcement to the channel
-    await say({
-      text: message,
-      response_type: 'in_channel'
-    });
+    // Determine where to send the announcement
+    const channel = body.channel;
+    const user = body.user;
+    const isDM = channel.id.startsWith('D') || channel.name === 'directmessage';
     
-    // Update the original message to show it was sent
+    let sentTo;
+    
+    if (isDM) {
+      // If original command was in DM, send as DM to the user
+      await client.chat.postMessage({
+        channel: user.id,
+        text: message,
+      });
+      sentTo = 'your DMs';
+    } else {
+      // If original command was in a channel, send to that channel
+      await say({
+        text: message,
+        response_type: 'in_channel'
+      });
+      sentTo = `<#${channel.id}>`;
+    }
+    
+    // Update the original message to show where it was sent
     await respond({
-      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to the channel.`,
+      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to ${sentTo}.`,
       response_type: 'ephemeral',
       replace_original: true
     });
