@@ -5,6 +5,19 @@ require('dotenv').config();
 // --- Initialize clients ---
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
+// --- Helper function to ensure JIRA URL has proper protocol ---
+function formatJiraServerUrl(jiraServer) {
+  if (!jiraServer) return '';
+  
+  // If it already has a protocol, use as-is
+  if (jiraServer.startsWith('http://') || jiraServer.startsWith('https://')) {
+    return jiraServer;
+  }
+  
+  // Otherwise, add https://
+  return `https://${jiraServer}`;
+}
+
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
   // Handle different release numbering schemes
@@ -162,7 +175,7 @@ async function testReleaseAnnouncement(releaseNumber) {
           type: 'jira',
           key: firstJiraTicket,
           summary: cleanTitle,
-          url: `${process.env.JIRA_SERVER}/browse/${firstJiraTicket}`,
+          url: `${formatJiraServerUrl(process.env.JIRA_SERVER)}/browse/${firstJiraTicket}`,
           commitSha: commitSha,
           commitAuthor: commit.commit.author.name,
           allJiraRefs: jiraMatches.map(m => m.toUpperCase()),
@@ -332,7 +345,7 @@ module.exports = async (req, res) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   
   // CORS headers (restrictive by default)
-  const allowedOrigin = process.env.TEST_ALLOWED_ORIGINS?.split(',')[0] || 'http://localhost:3001';
+  const allowedOrigin = process.env.TEST_ALLOWED_ORIGINS?.split(',')[0] || 'http://localhost:3000';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');

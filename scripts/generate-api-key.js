@@ -48,5 +48,5 @@ console.log('```');
 console.log('# Testing Endpoint Security');
 console.log('ENABLE_TEST_ENDPOINT=true');
 console.log(`TEST_API_KEY=${generateApiKey()}`);
-console.log('TEST_ALLOWED_ORIGINS=http://localhost:3001,https://yourdomain.com');
+console.log('TEST_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com');
 console.log('```'); 

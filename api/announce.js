@@ -35,6 +35,19 @@ function getPreviousRelease(releaseNumber) {
   }
 }
 
+// --- Helper function to ensure JIRA URL has proper protocol ---
+function formatJiraServerUrl(jiraServer) {
+  if (!jiraServer) return '';
+  
+  // If it already has a protocol, use as-is
+  if (jiraServer.startsWith('http://') || jiraServer.startsWith('https://')) {
+    return jiraServer;
+  }
+  
+  // Otherwise, add https://
+  return `https://${jiraServer}`;
+}
+
 // --- Main function to generate and send announcement ---
 async function generateAndSendAnnouncement(releaseNumber, channelId, options = {}) {
   const {
@@ -91,7 +104,7 @@ async function generateAndSendAnnouncement(releaseNumber, channelId, options = {
           type: 'jira',
           key: firstJiraTicket,
           summary: cleanTitle,
-          url: `${process.env.JIRA_SERVER}/browse/${firstJiraTicket}`,
+          url: `${formatJiraServerUrl(process.env.JIRA_SERVER)}/browse/${firstJiraTicket}`,
           commitSha: commitSha,
           commitAuthor: commit.commit.author.name,
           allJiraRefs: jiraMatches.map(m => m.toUpperCase()),

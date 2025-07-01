@@ -16,6 +16,19 @@ const app = new App({
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
+// --- Helper function to ensure JIRA URL has proper protocol ---
+function formatJiraServerUrl(jiraServer) {
+  if (!jiraServer) return '';
+  
+  // If it already has a protocol, use as-is
+  if (jiraServer.startsWith('http://') || jiraServer.startsWith('https://')) {
+    return jiraServer;
+  }
+  
+  // Otherwise, add https://
+  return `https://${jiraServer}`;
+}
+
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
   // Handle different release numbering schemes
@@ -100,7 +113,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           const firstJiraTicket = jiraMatches[0].toUpperCase();
           // Remove GitHub reference from title for clean JIRA link
           const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
-          let changeText = `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${cleanTitle}>`;
+          let changeText = `• <${formatJiraServerUrl(process.env.JIRA_SERVER)}/browse/${firstJiraTicket}|${cleanTitle}>`;
           
           // Append GitHub link if GitHub reference found
           if (githubMatches && githubMatches.length > 0) {

@@ -74,6 +74,10 @@ Fill in your actual values in `.env.local`:
    - `commands`
    - `chat:write`
    - `chat:write.public`
+   - `channels:read`
+   - `groups:read`
+   - `im:read`
+   - `mpim:read`
 7. Install the app to your workspace
 
 ### 4. Deploy to Vercel
@@ -268,7 +272,7 @@ Limit which domains can access the test endpoint:
 
 ```bash
 # Allow specific origins (comma-separated)
-TEST_ALLOWED_ORIGINS=http://localhost:3001,https://yourdomain.com
+TEST_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 ```
 
 #### ⏱️ **Rate Limiting**
@@ -523,7 +527,7 @@ pnpm dev
 # or: node scripts/test-local.js
 ```
 
-This will start a local testing server at `http://localhost:3001` with a friendly web interface for testing all bot functionality.
+This will start a local testing server at `http://localhost:3000` with a friendly web interface for testing all bot functionality.
 
 #### Option B: Using Vercel Dev
 
