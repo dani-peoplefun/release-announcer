@@ -132,7 +132,7 @@ GET https://your-app.vercel.app/api/test
 GET https://your-app.vercel.app/api/test?test=github
 ```
 
-**Jira Connection Test** - Verifies Jira API access and project permissions
+**JIRA Configuration Test** - Validates JIRA server URL and project settings
 ```
 GET https://your-app.vercel.app/api/test?test=jira
 ```
@@ -166,10 +166,11 @@ The testing endpoint returns detailed JSON responses. For example, the `all` tes
   "jira": {
     "success": true,
     "data": {
-      "authenticatedUser": "Your Name",
-      "userEmail": "you@company.com",
-      "project": "Wordscapes Unity",
-      "projectKey": "process.env.JIRA_PROJECT"
+      "jiraServer": "https://yourcompany.atlassian.net",
+      "projectKey": "process.env.JIRA_PROJECT",
+      "projectUrl": "https://yourcompany.atlassian.net/projects/process.env.JIRA_PROJECT",
+      "extractionRegex": "\\bprocess.env.JIRA_PROJECT-\\d+\\b",
+      "note": "JIRA connection test validates configuration only (no API calls needed)"
     }
   },
   "release": {
@@ -314,9 +315,9 @@ Edit the message formatting section in the slash command handler to change how a
 - Verify your GitHub token has access to the repository
 - Check that the release branches exist
 
-**"Jira connection failed"** 
-- Confirm your Jira credentials and server URL
-- Test the JQL query in Jira's issue search
+**"JIRA configuration invalid"** 
+- Confirm your JIRA_SERVER environment variable is set correctly
+- Ensure it includes the full URL (e.g., https://yourcompany.atlassian.net)
 
 ### Logs
 
@@ -392,7 +393,7 @@ This Slack Release Announcer provides a complete, secure solution for automated 
 - **API Key Authentication**: Optional additional security layer
 
 ### 🧪 **Testing Features**
-- **Comprehensive Test Suite**: Verify GitHub, Jira, and full release logic
+- **Comprehensive Test Suite**: Verify GitHub integration and JIRA extraction logic
 - **Local Testing Server**: Friendly web interface for development
 - **Production Testing**: Secure endpoint for live system verification
 - **API Key Generator**: Built-in tool for creating secure access keys

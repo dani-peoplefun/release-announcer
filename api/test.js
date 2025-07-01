@@ -1,18 +1,8 @@
 // Import necessary libraries
 const { Octokit } = require('@octokit/rest');
-const JiraApi = require('jira-client');
 require('dotenv').config();
 
 // --- Initialize clients ---
-const jira = new JiraApi({
-  protocol: 'https',
-  host: process.env.JIRA_SERVER,
-  username: process.env.JIRA_USERNAME,
-  password: process.env.JIRA_API_TOKEN,
-  apiVersion: '2',
-  strictSSL: true,
-});
-
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 const GITHUB_OWNER = 'process.env.GITHUB_OWNER';
@@ -60,24 +50,35 @@ async function testGitHubConnection() {
 
 async function testJiraConnection() {
   try {
-    const user = await jira.getCurrentUser();
-    const project = await jira.getProject(JIRA_PROJECT);
-    
+    // Since we no longer connect to JIRA directly, just validate configuration
+    if (!process.env.JIRA_SERVER) {
+      throw new Error('JIRA_SERVER environment variable not set');
+    }
+
+    if (!JIRA_PROJECT) {
+      throw new Error('JIRA_PROJECT not configured');
+    }
+
+    // Validate JIRA_SERVER format
+    const jiraUrl = process.env.JIRA_SERVER.startsWith('https://') 
+      ? process.env.JIRA_SERVER 
+      : `https://${process.env.JIRA_SERVER}`;
+
     return {
       success: true,
       data: {
-        authenticatedUser: user.displayName,
-        userEmail: user.emailAddress,
-        project: project.name,
-        projectKey: project.key,
-        projectUrl: `https://${process.env.JIRA_SERVER}/projects/${project.key}`,
+        jiraServer: jiraUrl,
+        projectKey: JIRA_PROJECT,
+        projectUrl: `${jiraUrl}/projects/${JIRA_PROJECT}`,
+        extractionRegex: `\\b${JIRA_PROJECT}-\\d+\\b`,
+        note: 'JIRA connection test validates configuration only (no API calls needed)',
       }
     };
   } catch (error) {
     return {
       success: false,
       error: error.message,
-      details: error.errorMessages || error.errors || null,
+      details: 'JIRA configuration validation failed',
     };
   }
 }

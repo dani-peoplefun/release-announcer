@@ -1,12 +1,18 @@
 // Import necessary libraries
-const { App } = require('@slack/bolt');
+const { App, AwsLambdaReceiver } = require('@slack/bolt');
 const { Octokit } = require('@octokit/rest');
 require('dotenv').config();
 
 // --- Initialize clients ---
+// Use AwsLambdaReceiver for serverless environments (works with Vercel too)
+const awsLambdaReceiver = new AwsLambdaReceiver({
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
+});
+
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
+  receiver: awsLambdaReceiver,
+  processBeforeResponse: true,
 });
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -30,69 +36,93 @@ function getPreviousRelease(releaseNumber) {
 }
 
 // --- Slash Command Handler ---
-app.command('/release-announce', async ({ command, ack, respond }) => {
-  // Acknowledge the command immediately
-  await ack();
-
-  const releaseNumber = command.text;
-  if (!releaseNumber) {
-    await respond('Please provide a release number.');
-    return;
-  }
-
+app.command('/release-announce', async (args) => {
   try {
-    // --- 1. Get commits from GitHub ---
-    const previousRelease = getPreviousRelease(releaseNumber);
-    const { data: comparison } = await octokit.repos.compareCommits({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
-      base: `releases/${previousRelease}`,
-      head: `releases/${releaseNumber}`,
-    });
-
-    // --- 2. Extract JIRA references from commit messages ---
-    const releaseChanges = [];
-    const addedIssues = new Set(); // To prevent duplicate entries
+    // Debug: Log what we're receiving
+    console.log('Command handler args:', Object.keys(args));
+    console.log('ack type:', typeof args.ack);
+    console.log('command:', args.command);
     
-    // Regex to find JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345, process.env.JIRA_PROJECT-123)
-    const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
+    const { command, ack, respond, say } = args;
+    
+    // Acknowledge the command immediately
+    if (typeof ack === 'function') {
+      await ack();
+    } else {
+      console.error('ack is not a function:', typeof ack, ack);
+      return;
+    }
 
-    for (const commit of comparison.commits) {
-      const commitTitle = commit.commit.message.split('\n')[0]; // First line is the title
-      const commitMessage = commit.commit.message; // Full message
+    const releaseNumber = command?.text?.trim();
+    if (!releaseNumber) {
+      await respond('Please provide a release number.');
+      return;
+    }
+
+    try {
+      // --- 1. Get commits from GitHub ---
+      const previousRelease = getPreviousRelease(releaseNumber);
+      const { data: comparison } = await octokit.repos.compareCommits({
+        owner: GITHUB_OWNER,
+        repo: GITHUB_REPO,
+        base: `releases/${previousRelease}`,
+        head: `releases/${releaseNumber}`,
+      });
+
+      // --- 2. Extract JIRA references from commit messages ---
+      const releaseChanges = [];
+      const addedIssues = new Set(); // To prevent duplicate entries
       
-      // Check both title and full message for JIRA references
-      const allText = `${commitTitle} ${commitMessage}`;
-      const matches = allText.match(jiraRegex);
-      
-      if (matches) {
-        // Process each unique JIRA reference found in this commit
-        for (const match of matches) {
-          const issueKey = match.toUpperCase(); // Normalize to uppercase
-          if (!addedIssues.has(issueKey)) {
-            releaseChanges.push(
-              `${process.env.JIRA_SERVER}/browse/${issueKey}\n${issueKey} ${commitTitle}`
-            );
-            addedIssues.add(issueKey);
+      // Regex to find JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345, process.env.JIRA_PROJECT-123)
+      const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
+
+      for (const commit of comparison.commits) {
+        const commitTitle = commit.commit.message.split('\n')[0]; // First line is the title
+        const commitMessage = commit.commit.message; // Full message
+        
+        // Check both title and full message for JIRA references
+        const allText = `${commitTitle} ${commitMessage}`;
+        const matches = allText.match(jiraRegex);
+        
+        if (matches) {
+          // Process each unique JIRA reference found in this commit
+          for (const match of matches) {
+            const issueKey = match.toUpperCase(); // Normalize to uppercase
+            if (!addedIssues.has(issueKey)) {
+              releaseChanges.push(
+                `${process.env.JIRA_SERVER}/browse/${issueKey}\n${issueKey} ${commitTitle}`
+              );
+              addedIssues.add(issueKey);
+            }
           }
         }
       }
+
+      // --- 3. Format and send the Slack message ---
+      let message;
+      if (releaseChanges.length > 0) {
+        const changesText = releaseChanges.join('\n');
+        message = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
+      } else {
+        message = `No new changes found for release ${releaseNumber}.`;
+      }
+
+      await respond({ text: message, response_type: 'in_channel' });
+
+    } catch (error) {
+      console.error('Release announcement error:', error);
+      await respond(`An error occurred: ${error.message}`);
     }
-
-    // --- 3. Format and send the Slack message ---
-    let message;
-    if (releaseChanges.length > 0) {
-      const changesText = releaseChanges.join('\n');
-      message = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
-    } else {
-      message = `No new changes found for release ${releaseNumber}.`;
+  } catch (outerError) {
+    console.error('Command handler error:', outerError);
+    // If respond is not available, we can't send a message back
+    if (typeof respond === 'function') {
+      try {
+        await respond('An unexpected error occurred. Please try again.');
+      } catch (respondError) {
+        console.error('Failed to send error response:', respondError);
+      }
     }
-
-    await respond({ text: message, response_type: 'in_channel' });
-
-  } catch (error) {
-    console.error(error);
-    await respond(`An error occurred: ${error.message}`);
   }
 });
 
@@ -105,46 +135,54 @@ app.error(async (error) => {
 // This exports the app handler for Vercel's serverless environment
 module.exports = async (req, res) => {
   try {
-    // Convert Vercel request to format expected by Bolt
-    const slackRequest = {
-      body: req.body || '',
+    // Get request body - Slack sends form-encoded data
+    let body = '';
+    if (req.body) {
+      if (typeof req.body === 'string') {
+        body = req.body;
+      } else {
+        // If it's already parsed as an object, convert back to form data
+        body = new URLSearchParams(req.body).toString();
+      }
+    }
+
+    // Convert Vercel request to AWS Lambda event format
+    const lambdaEvent = {
+      body: body,
       headers: req.headers,
-      method: req.method,
-      url: req.url,
+      httpMethod: req.method,
+      isBase64Encoded: false,
+      queryStringParameters: req.query || {},
     };
 
-    // Handle different content types
-    if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
-      // Parse form data if needed
-      if (typeof req.body === 'string') {
-        const params = new URLSearchParams(req.body);
-        slackRequest.body = Object.fromEntries(params);
-      }
-    }
+    // Create AWS Lambda context
+    const lambdaContext = {
+      callbackWaitsForEmptyEventLoop: false,
+    };
 
-    // Process the request with Bolt
-    const response = await app.processEvent({
-      body: slackRequest.body,
-      headers: slackRequest.headers,
-      isBase64Encoded: false,
-    });
+    // Call the AWS Lambda receiver
+    const result = await awsLambdaReceiver.start();
+    const response = await result(lambdaEvent, lambdaContext);
 
-    // Send the response
-    if (response) {
-      res.status(response.statusCode || 200);
-      
-      if (response.headers) {
-        Object.entries(response.headers).forEach(([key, value]) => {
-          res.setHeader(key, value);
-        });
-      }
-      
-      res.end(response.body || '');
-    } else {
-      res.status(200).end('OK');
+    // Send response back to Vercel
+    res.status(response.statusCode || 200);
+    
+    if (response.headers) {
+      Object.entries(response.headers).forEach(([key, value]) => {
+        res.setHeader(key, value);
+      });
     }
+    
+    res.send(response.body || '');
+
   } catch (error) {
     console.error('Failed to process request:', error);
+    console.error('Request details:', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }; 
