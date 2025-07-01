@@ -63,11 +63,14 @@ Fill in your actual values in `.env.local`:
    - **Command**: `/release`
    - **Request URL**: `https://your-app.vercel.app/api/slack` (you'll get this after deployment)
    - **Short Description**: "Announce a new release"
-   - **Usage Hint**: `[release-number]`
-5. Go to "OAuth & Permissions" and add these bot token scopes:
+5. Navigate to "Interactivity & Shortcuts" and configure:
+   - **Interactivity**: ON
+   - **Request URL**: `https://your-app.vercel.app/api/slack-interactions`
+6. Go to "OAuth & Permissions" and add these bot token scopes:
    - `commands`
    - `chat:write`
-6. Install the app to your workspace
+   - `chat:write.public`
+7. Install the app to your workspace
 
 ### 4. Deploy to Vercel
 
@@ -92,14 +95,15 @@ After deployment, Vercel will give you a URL like `https://your-app-name.vercel.
 
 1. Go back to your Slack app settings
 2. Update the "Request URL" in "Slash Commands" to: `https://your-app-name.vercel.app/api/slack`
-3. Save the changes
+3. Update the "Request URL" in "Interactivity & Shortcuts" to: `https://your-app-name.vercel.app/api/slack-interactions`
+4. Save the changes
 
 ## Usage
 
 In any Slack channel where the bot is installed:
 
 ```
-/release-announce 2.1.0
+/release 67
 ```
 
 The bot will:

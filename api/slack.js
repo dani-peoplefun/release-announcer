@@ -193,58 +193,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
   }
 });
 
-// --- Interactive Button Handlers ---
-app.action('send_announcement', async ({ ack, body, say, respond }) => {
-  try {
-    await ack();
-    
-    const buttonData = JSON.parse(body.actions[0].value);
-    const { message, releaseNumber } = buttonData;
-    
-    // Send the announcement to the channel
-    await say({
-      text: message,
-      response_type: 'in_channel'
-    });
-    
-    // Update the original message to show it was sent
-    await respond({
-      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to the channel.`,
-      response_type: 'ephemeral',
-      replace_original: true
-    });
-    
-  } catch (error) {
-    console.error('Send announcement error:', error);
-    await respond({
-      text: `❌ Failed to send announcement: ${error.message}`,
-      response_type: 'ephemeral',
-      replace_original: true
-    });
-  }
-});
-
-app.action('cancel_announcement', async ({ ack, respond, body }) => {
-  try {
-    await ack();
-    
-    const releaseNumber = body.message?.blocks?.[1]?.text?.text?.match(/releases\/(.+?)`/)?.[1] || 'unknown';
-    
-    await respond({
-      text: `❌ Release announcement for \`${releaseNumber}\` was cancelled.`,
-      response_type: 'ephemeral',
-      replace_original: true
-    });
-    
-  } catch (error) {
-    console.error('Cancel announcement error:', error);
-    await respond({
-      text: `❌ Failed to cancel announcement: ${error.message}`,
-      response_type: 'ephemeral',
-      replace_original: true
-    });
-  }
-});
+// Note: Interactive button handlers moved to /api/slack-interactions.js
 
 // --- Error handling for unhandled errors ---
 app.error(async (error) => {
