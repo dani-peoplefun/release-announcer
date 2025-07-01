@@ -16,7 +16,10 @@ A Slack bot that automatically generates release announcements by extracting JIR
 
 1. **User runs command**: `/release 67`
 2. **GitHub Analysis**: Compares commits between previous release and current release
-3. **JIRA Extraction**: Extracts JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) from commit titles and messages
+3. **Reference Extraction**: 
+   - First looks for JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) in commit titles and messages
+   - If no JIRA found, looks for GitHub issue/PR references (e.g., #544)
+   - Creates clickable links for both JIRA tickets and GitHub issues/PRs
 4. **Preview & Confirmation**: Shows a preview with interactive buttons to confirm or cancel
 5. **Slack Announcement**: Posts the formatted message to the channel upon confirmation
 
@@ -121,6 +124,7 @@ The bot will:
 *Changes:*
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123|process.env.JIRA_PROJECT-123 - Fix user login issue>
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124|process.env.JIRA_PROJECT-124 - Add new dashboard feature>  
+• <https://github.com/company/repo/pull/544|Fix authentication flow (#544)>
 • Refactor authentication module
 • Update documentation
 ```
@@ -129,10 +133,10 @@ The bot will:
 - ✅ **Shows all commits** (with or without JIRA references)
 - ✅ **Bullet point format** for easy reading
 - ✅ **Interactive confirmation** before posting to channel
-- ✅ **Clickable JIRA links** when tickets are referenced
+- ✅ **Clickable links** to JIRA tickets or GitHub issues/PRs when referenced
 - ✅ **Smart routing** - sends to the same channel/DM where command was used
 
-**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) in commit titles and messages. Commits without JIRA references are still included in the announcement!
+**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) first, then GitHub references (e.g., `#544`) in commit titles and messages. Commits without any references are still included in the announcement!
 
 ## Testing Endpoint
 

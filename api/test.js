@@ -149,14 +149,14 @@ async function testReleaseAnnouncement(releaseNumber) {
       
       // Check both title and full message for JIRA references
       const allText = `${commitTitle} ${commitMessage}`;
-      const matches = allText.match(jiraRegex);
+      const jiraMatches = allText.match(jiraRegex);
       
-      if (matches && matches.length > 0) {
-        totalJiraReferences += matches.length;
+      if (jiraMatches && jiraMatches.length > 0) {
+        totalJiraReferences += jiraMatches.length;
         commitsWithJira++;
         
         // Found JIRA references - link to first one found
-        const firstJiraTicket = matches[0].toUpperCase();
+        const firstJiraTicket = jiraMatches[0].toUpperCase();
         releaseChanges.push({
           type: 'jira',
           key: firstJiraTicket,
@@ -164,18 +164,37 @@ async function testReleaseAnnouncement(releaseNumber) {
           url: `${process.env.JIRA_SERVER}/browse/${firstJiraTicket}`,
           commitSha: commitSha,
           commitAuthor: commit.commit.author.name,
-          allJiraRefs: matches.map(m => m.toUpperCase()),
+          allJiraRefs: jiraMatches.map(m => m.toUpperCase()),
         });
       } else {
-        // No JIRA reference found - still include the commit
-        releaseChanges.push({
-          type: 'commit',
-          key: null,
-          summary: commitTitle,
-          url: null,
-          commitSha: commitSha,
-          commitAuthor: commit.commit.author.name,
-        });
+        // No JIRA reference found - check for GitHub issue/PR references
+        const githubRegex = /#(\d+)/g;
+        const githubMatches = allText.match(githubRegex);
+        
+        if (githubMatches && githubMatches.length > 0) {
+          // Found GitHub reference - link to first PR/issue found
+          const firstGithubRef = githubMatches[0].replace('#', '');
+          const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+          releaseChanges.push({
+            type: 'github',
+            key: firstGithubRef,
+            summary: commitTitle,
+            url: githubUrl,
+            commitSha: commitSha,
+            commitAuthor: commit.commit.author.name,
+            allGithubRefs: githubMatches,
+          });
+        } else {
+          // No references found - still include the commit
+          releaseChanges.push({
+            type: 'commit',
+            key: null,
+            summary: commitTitle,
+            url: null,
+            commitSha: commitSha,
+            commitAuthor: commit.commit.author.name,
+          });
+        }
       }
     }
 
@@ -193,7 +212,7 @@ async function testReleaseAnnouncement(releaseNumber) {
     if (releaseChanges.length > 0) {
       const changesText = releaseChanges
         .map(change => {
-          if (change.type === 'jira') {
+          if (change.type === 'jira' || change.type === 'github') {
             return `• <${change.url}|${change.summary}>`;
           } else {
             return `• ${change.summary}`;

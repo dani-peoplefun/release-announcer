@@ -95,15 +95,30 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         processedCommits.add(commitSha);
         
         const allText = `${commitTitle} ${commitMessage}`;
-        const matches = allText.match(jiraRegex);
+        const jiraMatches = allText.match(jiraRegex);
         
-        if (matches && matches.length > 0) {
-          const firstJiraTicket = matches[0].toUpperCase();
+        if (jiraMatches && jiraMatches.length > 0) {
+          // Found JIRA references - link to first one found
+          const firstJiraTicket = jiraMatches[0].toUpperCase();
           releaseChanges.push(
             `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${commitTitle}>`
           );
         } else {
-          releaseChanges.push(`• ${commitTitle}`);
+          // No JIRA reference found - check for GitHub issue/PR references
+          const githubRegex = /#(\d+)/g;
+          const githubMatches = allText.match(githubRegex);
+          
+          if (githubMatches && githubMatches.length > 0) {
+            // Found GitHub reference - link to first PR/issue found
+            const firstGithubRef = githubMatches[0].replace('#', '');
+            const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+            releaseChanges.push(
+              `• <${githubUrl}|${commitTitle}>`
+            );
+          } else {
+            // No references found - just show the commit title
+            releaseChanges.push(`• ${commitTitle}`);
+          }
         }
       }
 
