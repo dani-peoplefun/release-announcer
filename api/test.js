@@ -171,7 +171,7 @@ async function testReleaseAnnouncement(releaseNumber) {
         // Add GitHub info if GitHub reference found
         if (githubMatches && githubMatches.length > 0) {
           const firstGithubRef = githubMatches[0].replace('#', '');
-          const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+          const githubUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/pull/${firstGithubRef}`;
           changeEntry.githubKey = firstGithubRef;
           changeEntry.githubUrl = githubUrl;
           changeEntry.allGithubRefs = githubMatches;
@@ -181,7 +181,7 @@ async function testReleaseAnnouncement(releaseNumber) {
       } else if (githubMatches && githubMatches.length > 0) {
         // No JIRA but found GitHub reference
         const firstGithubRef = githubMatches[0].replace('#', '');
-        const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+        const githubUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/pull/${firstGithubRef}`;
         // Remove the GitHub reference from the title since it's already in the link
         const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
         releaseChanges.push({
@@ -198,11 +198,11 @@ async function testReleaseAnnouncement(releaseNumber) {
     }
 
     const commitsWithGithub = releaseChanges.filter(change => change.type === 'github').length;
-    const commitsSkipped = commits.length - releaseChanges.length;
+    const commitsSkipped = comparison.commits.length - releaseChanges.length;
     
     results.jiraExtraction = {
       success: true,
-      totalCommits: commits.length,
+      totalCommits: comparison.commits.length,
       commitsIncluded: releaseChanges.length,
       commitsSkipped: commitsSkipped,
       commitsWithJira: commitsWithJira,

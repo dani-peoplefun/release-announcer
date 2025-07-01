@@ -1,0 +1,171 @@
+# EXAMPLE WORKFLOW - Copy this to your target repository's .github/workflows/ directory
+# This workflow triggers the release announcer bot when releases are created or branches are pushed
+
+name: Release Announcement
+
+# Trigger the workflow on different events
+on:
+  # When a new release is published
+  release:
+    types: [published]
+  
+  # When pushing to release branches
+  push:
+    branches:
+      - 'releases/**'
+  
+  # Manual trigger with inputs
+  workflow_dispatch:
+    inputs:
+      release_number:
+        description: 'Release number (e.g., 2.1.0 or 67)'
+        required: true
+        type: string
+      channel_name:
+        description: 'Slack channel name (without #)'
+        required: true
+        default: 'releases'
+        type: string
+      custom_message:
+        description: 'Custom message template (optional)'
+        required: false
+        type: string
+
+jobs:
+  announce-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Extract release number
+        id: extract-release
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # Extract from release tag (remove 'v' prefix if present)
+            RELEASE_NUMBER="${{ github.event.release.tag_name }}"
+            RELEASE_NUMBER="${RELEASE_NUMBER#v}"
+            echo "release_number=$RELEASE_NUMBER" >> $GITHUB_OUTPUT
+            echo "trigger=release_published" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # Extract from branch name (releases/2.1.0 -> 2.1.0)
+            BRANCH_NAME="${{ github.ref_name }}"
+            RELEASE_NUMBER="${BRANCH_NAME#releases/}"
+            echo "release_number=$RELEASE_NUMBER" >> $GITHUB_OUTPUT
+            echo "trigger=branch_push" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Use manual input
+            echo "release_number=${{ github.event.inputs.release_number }}" >> $GITHUB_OUTPUT
+            echo "trigger=manual" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send release announcement
+        id: announce
+        run: |
+          # Determine channel name
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CHANNEL_NAME="${{ github.event.inputs.channel_name }}"
+            CUSTOM_MESSAGE="${{ github.event.inputs.custom_message }}"
+          else
+            CHANNEL_NAME="${{ vars.DEFAULT_RELEASE_CHANNEL || 'releases' }}"
+            CUSTOM_MESSAGE=""
+          fi
+          
+          # Prepare the JSON payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "releaseNumber": "${{ steps.extract-release.outputs.release_number }}",
+            "channelName": "$CHANNEL_NAME",
+            "autoSend": true,
+            "filterEmptyCommits": true
+          }
+          EOF
+          )
+          
+          # Add custom message if provided
+          if [ -n "$CUSTOM_MESSAGE" ]; then
+            PAYLOAD=$(echo "$PAYLOAD" | jq --arg msg "$CUSTOM_MESSAGE" '. + {customMessage: $msg}')
+          fi
+          
+          echo "Sending announcement to #$CHANNEL_NAME for release ${{ steps.extract-release.outputs.release_number }}"
+          echo "Payload: $PAYLOAD"
+          
+          # Make the API call
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: ${{ secrets.ANNOUNCE_API_KEY }}" \
+            -d "$PAYLOAD" \
+            "${{ vars.RELEASE_ANNOUNCER_URL || secrets.RELEASE_ANNOUNCER_URL }}/api/announce")
+          
+          # Extract HTTP status code
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          RESPONSE_BODY=$(echo "$RESPONSE" | head -n -1)
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $RESPONSE_BODY"
+          
+          # Check if successful
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ Release announcement sent successfully!"
+            echo "response_body=$RESPONSE_BODY" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to send release announcement"
+            echo "HTTP Status: $HTTP_CODE"
+            echo "Response: $RESPONSE_BODY"
+            exit 1
+          fi
+
+      - name: Comment on PR (if triggered by push)
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find recent PRs that might be related to this push
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              head: `${context.repo.owner}:${{ github.ref_name }}`,
+              per_page: 1
+            });
+            
+            if (pulls.length > 0) {
+              const pr = pulls[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `🚀 **Release announcement sent!**
+                
+                Release \`${{ steps.extract-release.outputs.release_number }}\` has been announced in Slack.
+                
+                Triggered by: ${{ steps.extract-release.outputs.trigger }}
+                Channel: #${{ vars.DEFAULT_RELEASE_CHANNEL || 'releases' }}
+                
+                [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+              });
+            }
+
+      - name: Create deployment status
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment?.id || 0,
+              state: 'success',
+              description: 'Release announcement sent to Slack',
+              environment: 'production'
+            });
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Release announcement failed!"
+          echo "Check the logs above for details."
+          echo "Ensure that:"
+          echo "1. ANNOUNCE_API_KEY secret is set correctly"
+          echo "2. RELEASE_ANNOUNCER_URL is configured"
+          echo "3. The release branches exist in the repository"
+          echo "4. The Slack bot has permissions to post to the specified channel" 

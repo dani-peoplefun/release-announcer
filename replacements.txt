@@ -1,0 +1,3 @@
+peoplefun==>process.env.GITHUB_OWNER
+game-wordscapes-server==>process.env.GITHUB_REPO
+WSU==>process.env.JIRA_PROJECT

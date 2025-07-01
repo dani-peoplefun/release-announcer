@@ -352,6 +352,164 @@ Edit the message formatting section in the slash command handler to change how a
 
 View logs in the Vercel dashboard under your project's "Functions" tab to debug issues.
 
+## GitHub Actions Integration
+
+You can trigger your release announcer automatically from GitHub Actions in several ways:
+
+> **📁 Example Files**: All GitHub workflow examples are located in the `examples/github-workflows/` directory. Copy these to your **target repository's** `.github/workflows/` directory (not in the release-announcer repo itself).
+
+### Option 1: Using the Built-in API Endpoint (Recommended)
+
+The release announcer includes a dedicated `/api/announce` endpoint that can be called from GitHub Actions.
+
+#### Setup Steps:
+
+1. **Generate an API key** for security:
+   ```bash
+   npm run generate-announce-key
+   ```
+
+2. **Add secrets to your GitHub repository**:
+   - `ANNOUNCE_API_KEY`: The API key you generated
+   - `SLACK_BOT_TOKEN`: Your Slack bot token (if not already set)
+
+3. **Add repository variables** (Settings > Secrets and variables > Actions > Variables):
+   - `RELEASE_ANNOUNCER_URL`: Your deployed Vercel app URL (e.g., `https://your-app.vercel.app`)
+   - `DEFAULT_RELEASE_CHANNEL`: Default Slack channel name (e.g., `releases`)
+
+4. **Copy the example workflow**: Copy `examples/github-workflows/release-announcement.yml` to your target repository's `.github/workflows/` directory. This workflow provides automatic triggers for:
+   - ✅ **Release published**: When you create a GitHub release
+   - ✅ **Push to release branches**: When pushing to `releases/*` branches  
+   - ✅ **Manual trigger**: Run manually with custom parameters
+
+#### Example API Usage:
+
+```bash
+curl -X POST https://your-app.vercel.app/api/announce \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "releaseNumber": "2.1.0",
+    "channelName": "releases",
+    "autoSend": true,
+    "filterEmptyCommits": true
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Release announcement sent for 2.1.0",
+  "releaseNumber": "2.1.0", 
+  "previousRelease": "2.0",
+  "slackResponse": { "ok": true, "channel": "C1234567890", "ts": "1234567890.123456" },
+  "commits": {
+    "total": 15,
+    "processed": 8,
+    "withJira": 5,
+    "withGithub": 3,
+    "totalJiraReferences": 7
+  }
+}
+```
+
+### Option 2: Simple Slack Notifications
+
+For basic notifications without the full release analysis, use the simpler approach with the official Slack GitHub Action. See `examples/github-workflows/simple-slack-notification.yml` for an example to copy to your target repository.
+
+#### Setup Steps:
+
+1. **Add secrets to your GitHub repository**:
+   - `SLACK_BOT_TOKEN`: Your Slack bot token
+
+2. **Add repository variables**:
+   - `SLACK_CHANNEL_ID`: Your Slack channel ID (or use `#channel-name`)
+
+3. **Customize the workflow** to trigger on your preferred events (push, PR, release, etc.)
+
+### Option 3: Webhook Integration
+
+For real-time updates, you can set up GitHub webhooks pointing to your `/api/announce` endpoint:
+
+1. Go to your GitHub repository Settings > Webhooks
+2. Add webhook URL: `https://your-app.vercel.app/api/announce`
+3. Set content type to `application/json`
+4. Add your API key as a custom header: `X-API-Key: your-api-key`
+5. Select events: `Releases`, `Pushes` (to specific branches)
+
+### API Endpoint Parameters
+
+The `/api/announce` endpoint accepts these parameters:
+
+| Parameter | Required | Description | Example |
+|-----------|----------|-------------|---------|
+| `releaseNumber` | ✅ | Release version number | `"2.1.0"`, `"67"` |
+| `channelId` | ✅* | Slack channel ID | `"C1234567890"` |
+| `channelName` | ✅* | Slack channel name | `"releases"` |
+| `autoSend` | ❌ | Whether to send immediately | `true` (default) |
+| `filterEmptyCommits` | ❌ | Filter commits without references | `true` (default) |
+| `customMessage` | ❌ | Custom message template | `"🚀 Release {{releaseNumber}} deployed!"` |
+
+*Either `channelId` or `channelName` is required
+
+### Advanced Workflow Examples
+
+#### Release-specific Channel Routing
+
+```yaml
+- name: Determine target channel
+  id: channel
+  run: |
+    if [[ "${{ steps.extract-release.outputs.release_number }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo "channel_name=releases-prod" >> $GITHUB_OUTPUT
+    else
+      echo "channel_name=releases-staging" >> $GITHUB_OUTPUT  
+    fi
+
+- name: Send to appropriate channel
+  run: |
+    curl -X POST "${{ vars.RELEASE_ANNOUNCER_URL }}/api/announce" \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: ${{ secrets.ANNOUNCE_API_KEY }}" \
+      -d '{
+        "releaseNumber": "${{ steps.extract-release.outputs.release_number }}",
+        "channelName": "${{ steps.channel.outputs.channel_name }}"
+      }'
+```
+
+#### Conditional Announcements
+
+```yaml
+- name: Check if announcement needed
+  id: should-announce
+  run: |
+    # Only announce releases, not pre-releases
+    if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
+      echo "should_announce=true" >> $GITHUB_OUTPUT
+    else
+      echo "should_announce=false" >> $GITHUB_OUTPUT
+    fi
+
+- name: Announce release
+  if: steps.should-announce.outputs.should_announce == 'true'
+     # ... rest of announcement logic
+ ```
+
+## Examples Directory
+
+The `examples/` directory contains ready-to-use templates for integrating the release announcer with your repositories:
+
+```
+examples/
+├── README.md                              # Detailed setup instructions
+└── github-workflows/
+    ├── release-announcement.yml           # Full release announcer integration
+    └── simple-slack-notification.yml      # Basic Slack notifications
+```
+
+**Important**: Copy these files to your **target repository** (where releases happen), not to the release-announcer repository itself.
+
 ## Development
 
 ### Local Testing

@@ -9,10 +9,12 @@
     "start": "node api/slack.js",
     "test": "node scripts/test-local.js",
     "test:endpoint": "node -e \"console.log('Use the /api/test endpoint for testing')\"",
-    "generate-key": "node scripts/generate-api-key.js"
+    "generate-key": "node scripts/generate-api-key.js",
+    "generate-announce-key": "node scripts/generate-announce-key.js"
   },
   "dependencies": {
     "@slack/bolt": "^3.17.1",
+    "@slack/web-api": "^7.0.0",
     "@octokit/rest": "^20.0.2",
     "dotenv": "^16.3.1"
   },

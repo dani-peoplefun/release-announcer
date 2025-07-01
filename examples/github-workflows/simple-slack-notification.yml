@@ -1,0 +1,87 @@
+# EXAMPLE WORKFLOW - Copy this to your target repository's .github/workflows/ directory
+# This is a simpler alternative using the official Slack GitHub Action for basic notifications
+
+name: Simple Slack Notification
+
+# Simpler approach using the official Slack GitHub Action
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    types: [opened, closed]
+  release:
+    types: [published]
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Determine message
+        id: message
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            MESSAGE="🔄 New push to \`${{ github.ref_name }}\` by ${{ github.actor }}"
+            DETAILS="[View changes](${{ github.event.compare }})"
+          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" = "opened" ]; then
+            MESSAGE="📥 New PR opened: ${{ github.event.pull_request.title }}"
+            DETAILS="[View PR](${{ github.event.pull_request.html_url }})"
+          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.action }}" = "closed" ] && [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+            MESSAGE="✅ PR merged: ${{ github.event.pull_request.title }}"
+            DETAILS="[View PR](${{ github.event.pull_request.html_url }})"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            MESSAGE="🚀 New release published: ${{ github.event.release.tag_name }}"
+            DETAILS="[View release](${{ github.event.release.html_url }})"
+          else
+            MESSAGE="📦 Repository activity in ${{ github.repository }}"
+            DETAILS="[View commit](${{ github.event.head_commit.url }})"
+          fi
+          
+          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+          echo "details=$DETAILS" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          # Channel ID or name (can use channel name with # prefix)
+          channel-id: ${{ vars.SLACK_CHANNEL_ID || '#releases' }}
+          slack-message: |
+            ${{ steps.message.outputs.message }}
+            
+            ${{ steps.message.outputs.details }}
+            
+            Repository: ${{ github.repository }}
+            Actor: ${{ github.actor }}
+            Ref: ${{ github.ref_name }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Send rich Slack message (alternative)
+        if: false  # Set to true to use this instead
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          channel-id: ${{ vars.SLACK_CHANNEL_ID || '#releases' }}
+          payload: |
+            {
+              "text": "${{ steps.message.outputs.message }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.message.outputs.message }}\n\n${{ steps.message.outputs.details }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Repository: <https://github.com/${{ github.repository }}|${{ github.repository }}> | Actor: ${{ github.actor }} | Ref: `${{ github.ref_name }}`"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }} 
