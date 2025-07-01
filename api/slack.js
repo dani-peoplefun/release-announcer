@@ -96,30 +96,37 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         
         const allText = `${commitTitle} ${commitMessage}`;
         const jiraMatches = allText.match(jiraRegex);
+        const githubRegex = /#(\d+)/g;
+        const githubMatches = allText.match(githubRegex);
         
         if (jiraMatches && jiraMatches.length > 0) {
           // Found JIRA references - link to first one found
           const firstJiraTicket = jiraMatches[0].toUpperCase();
+          // Remove GitHub reference from title for clean JIRA link
+          const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
           releaseChanges.push(
-            `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${commitTitle}>`
+            `• <${process.env.JIRA_SERVER}/browse/${firstJiraTicket}|${cleanTitle}>`
           );
-        } else {
-          // No JIRA reference found - check for GitHub issue/PR references
-          const githubRegex = /#(\d+)/g;
-          const githubMatches = allText.match(githubRegex);
           
+          // Also add GitHub link if GitHub reference found
           if (githubMatches && githubMatches.length > 0) {
-            // Found GitHub reference - link to first PR/issue found
             const firstGithubRef = githubMatches[0].replace('#', '');
             const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
-            // Remove the GitHub reference from the title since it's already in the link
-            const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
             releaseChanges.push(
-              `• ${cleanTitle} <${githubUrl}|(#${firstGithubRef})>`
+              `• <${githubUrl}|(#${firstGithubRef})>`
             );
           }
-          // Skip commits with no references (don't add to releaseChanges)
+        } else if (githubMatches && githubMatches.length > 0) {
+          // No JIRA but found GitHub reference
+          const firstGithubRef = githubMatches[0].replace('#', '');
+          const githubUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/pull/${firstGithubRef}`;
+          // Remove the GitHub reference from the title since it's already in the link
+          const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
+          releaseChanges.push(
+            `• ${cleanTitle} <${githubUrl}|(#${firstGithubRef})>`
+          );
         }
+        // Skip commits with no references (don't add to releaseChanges)
       }
 
       // Create confirmation message

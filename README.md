@@ -123,10 +123,11 @@ The bot will:
 *Branch:* `releases/2.1.0`
 *Changes:*
 • <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123|process.env.JIRA_PROJECT-123 - Fix user login issue>
-• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124|process.env.JIRA_PROJECT-124 - Add new dashboard feature>  
-• Fix authentication flow <https://github.com/company/repo/pull/544|(#544)>
-• Refactor authentication module
-• Update documentation
+• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124|process.env.JIRA_PROJECT-124 - Add new dashboard feature>
+• <https://github.com/company/repo/pull/544|(#544)>
+• Fix authentication flow <https://github.com/company/repo/pull/789|(#789)>
+• <https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-125|Fix critical bug>
+• <https://github.com/company/repo/pull/125|(#125)>
 ```
 
 **Features:**
