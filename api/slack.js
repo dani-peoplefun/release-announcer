@@ -105,10 +105,46 @@ app.error(async (error) => {
 // This exports the app handler for Vercel's serverless environment
 module.exports = async (req, res) => {
   try {
-    const handler = await app.start();
-    handler(req, res);
+    // Convert Vercel request to format expected by Bolt
+    const slackRequest = {
+      body: req.body || '',
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+    };
+
+    // Handle different content types
+    if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
+      // Parse form data if needed
+      if (typeof req.body === 'string') {
+        const params = new URLSearchParams(req.body);
+        slackRequest.body = Object.fromEntries(params);
+      }
+    }
+
+    // Process the request with Bolt
+    const response = await app.processEvent({
+      body: slackRequest.body,
+      headers: slackRequest.headers,
+      isBase64Encoded: false,
+    });
+
+    // Send the response
+    if (response) {
+      res.status(response.statusCode || 200);
+      
+      if (response.headers) {
+        Object.entries(response.headers).forEach(([key, value]) => {
+          res.setHeader(key, value);
+        });
+      }
+      
+      res.end(response.body || '');
+    } else {
+      res.status(200).end('OK');
+    }
   } catch (error) {
-    console.error('Failed to start app:', error);
+    console.error('Failed to process request:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }; 
