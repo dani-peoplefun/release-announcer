@@ -90,45 +90,98 @@ app.command('/release-announce', async (args) => {
         head: `releases/${releaseNumber}`,
       });
 
-      // --- 2. Extract JIRA references from commit messages ---
+      // --- 2. Process commits and extract JIRA references ---
       const releaseChanges = [];
-      const addedIssues = new Set(); // To prevent duplicate entries
+      const processedCommits = new Set(); // To prevent duplicate commits
       
       // Regex to find JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345, process.env.JIRA_PROJECT-123)
       const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
 
       for (const commit of comparison.commits) {
+        const commitSha = commit.sha.substring(0, 7);
         const commitTitle = commit.commit.message.split('\n')[0]; // First line is the title
         const commitMessage = commit.commit.message; // Full message
+        
+        // Skip if we've already processed this commit
+        if (processedCommits.has(commitSha)) {
+          continue;
+        }
+        processedCommits.add(commitSha);
         
         // Check both title and full message for JIRA references
         const allText = `${commitTitle} ${commitMessage}`;
         const matches = allText.match(jiraRegex);
         
-        if (matches) {
-          // Process each unique JIRA reference found in this commit
-          for (const match of matches) {
-            const issueKey = match.toUpperCase(); // Normalize to uppercase
-            if (!addedIssues.has(issueKey)) {
-              releaseChanges.push(
-                `${process.env.JIRA_SERVER}/browse/${issueKey}\n${issueKey} ${commitTitle}`
-              );
-              addedIssues.add(issueKey);
-            }
-          }
+        if (matches && matches.length > 0) {
+          // Found JIRA references - link to first one found
+          const firstJiraTicket = matches[0].toUpperCase();
+          releaseChanges.push(
+            `• [${firstJiraTicket}](${process.env.JIRA_SERVER}/browse/${firstJiraTicket}) - ${commitTitle}`
+          );
+        } else {
+          // No JIRA reference found - just show the commit
+          releaseChanges.push(
+            `• ${commitTitle}`
+          );
         }
       }
 
-      // --- 3. Format and send the Slack message ---
-      let message;
+      // --- 3. Create confirmation message ---
+      let previewMessage;
       if (releaseChanges.length > 0) {
         const changesText = releaseChanges.join('\n');
-        message = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
+        previewMessage = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
       } else {
-        message = `No new changes found for release ${releaseNumber}.`;
+        previewMessage = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:* No commits found in this release.`;
       }
 
-      await respond({ text: message, response_type: 'in_channel' });
+      // Send confirmation message with buttons
+      await respond({
+        text: "Release announcement preview:",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "*Preview of release announcement:*"
+            }
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: previewMessage
+            }
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "✅ Send to Channel"
+                },
+                style: "primary",
+                action_id: "send_announcement",
+                value: JSON.stringify({
+                  message: previewMessage,
+                  releaseNumber: releaseNumber
+                })
+              },
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "❌ Cancel"
+                },
+                style: "danger",
+                action_id: "cancel_announcement"
+              }
+            ]
+          }
+        ]
+      });
 
     } catch (error) {
       console.error('Release announcement error:', error);
@@ -155,6 +208,61 @@ app.command('/release-announce', async (args) => {
         console.error('Failed to send error response:', respondError);
       }
     }
+  }
+});
+
+// --- Interactive Button Handlers ---
+app.action('send_announcement', async ({ ack, body, say, respond }) => {
+  try {
+    await ack();
+    
+    // Parse the announcement data from the button value
+    const buttonData = JSON.parse(body.actions[0].value);
+    const { message, releaseNumber } = buttonData;
+    
+    // Send the announcement to the channel
+    await say({
+      text: message,
+      response_type: 'in_channel'
+    });
+    
+    // Update the original message to show it was sent
+    await respond({
+      text: `✅ Release announcement for \`${releaseNumber}\` has been sent to the channel.`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+    
+  } catch (error) {
+    console.error('Send announcement error:', error);
+    await respond({
+      text: `❌ Failed to send announcement: ${error.message}`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+  }
+});
+
+app.action('cancel_announcement', async ({ ack, respond, body }) => {
+  try {
+    await ack();
+    
+    const releaseNumber = body.message?.blocks?.[1]?.text?.text?.match(/releases\/(.+?)`/)?.[1] || 'unknown';
+    
+    // Update the original message to show it was cancelled
+    await respond({
+      text: `❌ Release announcement for \`${releaseNumber}\` was cancelled.`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
+    
+  } catch (error) {
+    console.error('Cancel announcement error:', error);
+    await respond({
+      text: `❌ Failed to cancel announcement: ${error.message}`,
+      response_type: 'ephemeral',
+      replace_original: true
+    });
   }
 });
 

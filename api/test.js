@@ -129,57 +129,81 @@ async function testReleaseAnnouncement(releaseNumber) {
       moreCommits: comparison.commits.length > 5,
     };
 
-    // --- 2. Extract JIRA references from commit messages ---
+    // --- 2. Process commits and extract JIRA references ---
     const releaseChanges = [];
-    const addedIssues = new Set();
+    const processedCommits = new Set();
     const jiraRegex = new RegExp(`\\b${JIRA_PROJECT}-\\d+\\b`, 'gi');
     let totalJiraReferences = 0;
+    let commitsWithJira = 0;
 
     for (const commit of comparison.commits) {
+      const commitSha = commit.sha.substring(0, 7);
       const commitTitle = commit.commit.message.split('\n')[0];
       const commitMessage = commit.commit.message;
+      
+      // Skip if we've already processed this commit
+      if (processedCommits.has(commitSha)) {
+        continue;
+      }
+      processedCommits.add(commitSha);
       
       // Check both title and full message for JIRA references
       const allText = `${commitTitle} ${commitMessage}`;
       const matches = allText.match(jiraRegex);
       
-      if (matches) {
+      if (matches && matches.length > 0) {
         totalJiraReferences += matches.length;
+        commitsWithJira++;
         
-        // Process each unique JIRA reference found in this commit
-        for (const match of matches) {
-          const issueKey = match.toUpperCase();
-          if (!addedIssues.has(issueKey)) {
-            releaseChanges.push({
-              key: issueKey,
-              summary: commitTitle,
-              url: `${process.env.JIRA_SERVER}/browse/${issueKey}`,
-              commitSha: commit.sha.substring(0, 7),
-              commitAuthor: commit.commit.author.name,
-            });
-            addedIssues.add(issueKey);
-          }
-        }
+        // Found JIRA references - link to first one found
+        const firstJiraTicket = matches[0].toUpperCase();
+        releaseChanges.push({
+          type: 'jira',
+          key: firstJiraTicket,
+          summary: commitTitle,
+          url: `${process.env.JIRA_SERVER}/browse/${firstJiraTicket}`,
+          commitSha: commitSha,
+          commitAuthor: commit.commit.author.name,
+          allJiraRefs: matches.map(m => m.toUpperCase()),
+        });
+      } else {
+        // No JIRA reference found - still include the commit
+        releaseChanges.push({
+          type: 'commit',
+          key: null,
+          summary: commitTitle,
+          url: null,
+          commitSha: commitSha,
+          commitAuthor: commit.commit.author.name,
+        });
       }
     }
 
     results.jiraExtraction = {
       success: true,
+      totalCommits: releaseChanges.length,
+      commitsWithJira: commitsWithJira,
+      commitsWithoutJira: releaseChanges.length - commitsWithJira,
       totalJiraReferences,
-      uniqueIssues: releaseChanges.length,
       releaseChanges,
       regex: jiraRegex.toString(),
     };
 
-    // --- 3. Generate announcement ---
+    // --- 3. Generate announcement preview ---
     if (releaseChanges.length > 0) {
       const changesText = releaseChanges
-        .map(change => `${change.url}\n${change.key} ${change.summary}`)
+        .map(change => {
+          if (change.type === 'jira') {
+            return `• [${change.key}](${change.url}) - ${change.summary}`;
+          } else {
+            return `• ${change.summary}`;
+          }
+        })
         .join('\n');
       
       results.announcement = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${changesText}`;
     } else {
-      results.announcement = `No new changes found for release ${releaseNumber}.`;
+      results.announcement = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:* No commits found in this release.`;
     }
 
   } catch (error) {

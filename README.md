@@ -7,6 +7,8 @@ A Slack bot that automatically generates release announcements by extracting JIR
 - 🚀 **Automated Release Announcements**: Generate release summaries with a simple `/release-announce` command
 - 🔗 **GitHub Integration**: Compares release branches to identify commits
 - 🎫 **JIRA Reference Extraction**: Finds JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) in commit messages
+- ✅ **Interactive Confirmation**: Preview and confirm before sending to channel
+- 📝 **Complete Commit Coverage**: Shows all commits, with or without JIRA references
 - 🔒 **Secure**: Uses Slack's request signing for authentication
 - ⚡ **Serverless**: Deployed on Vercel for automatic scaling and zero server management
 
@@ -15,7 +17,8 @@ A Slack bot that automatically generates release announcements by extracting JIR
 1. **User runs command**: `/release-announce 2.1.0`
 2. **GitHub Analysis**: Compares commits between previous release and current release
 3. **JIRA Extraction**: Extracts JIRA ticket references (e.g., process.env.JIRA_PROJECT-12345) from commit titles and messages
-4. **Slack Announcement**: Posts a formatted message with all referenced JIRA tickets
+4. **Preview & Confirmation**: Shows a preview with interactive buttons to confirm or cancel
+5. **Slack Announcement**: Posts the formatted message to the channel upon confirmation
 
 ## Prerequisites
 
@@ -102,19 +105,27 @@ In any Slack channel where the bot is installed:
 The bot will:
 1. Compare `releases/2.0` with `releases/2.1.0` branches
 2. Extract JIRA ticket references from commit messages
-3. Post a formatted message like:
+3. Show a preview with confirmation buttons
+4. Post the final announcement when you click "✅ Send to Channel"
 
+**Example announcement format:**
 ```
 *Deploying to prod* 🚀
 *Branch:* `releases/2.1.0`
 *Changes:*
-https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123
-process.env.JIRA_PROJECT-123 Fix user login issue
-https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124
-process.env.JIRA_PROJECT-124 Add new dashboard feature
+• [process.env.JIRA_PROJECT-123](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-123) - Fix user login issue
+• [process.env.JIRA_PROJECT-124](https://yourcompany.atlassian.net/browse/process.env.JIRA_PROJECT-124) - Add new dashboard feature  
+• Refactor authentication module
+• Update documentation
 ```
 
-**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) in commit titles and messages. Make sure your commits include JIRA ticket references!
+**Features:**
+- ✅ **Shows all commits** (with or without JIRA references)
+- ✅ **Bullet point format** for easy reading
+- ✅ **Interactive confirmation** before posting to channel
+- ✅ **Clickable JIRA links** when tickets are referenced
+
+**Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) in commit titles and messages. Commits without JIRA references are still included in the announcement!
 
 ## Testing Endpoint
 
@@ -184,8 +195,10 @@ The testing endpoint returns detailed JSON responses. For example, the `all` tes
     },
     "jiraExtraction": {
       "success": true,
-      "totalJiraReferences": 8,
-      "uniqueIssues": 3,
+      "totalCommits": 15,
+      "commitsWithJira": 8,
+      "commitsWithoutJira": 7,
+      "totalJiraReferences": 12,
       "releaseChanges": [...],
       "regex": "/\\bprocess.env.JIRA_PROJECT-\\d+\\b/gi"
     },
