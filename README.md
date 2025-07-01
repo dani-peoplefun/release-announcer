@@ -110,8 +110,8 @@ The bot will:
 1. Compare `releases/2.0` with `releases/2.1.0` branches
 2. Extract JIRA ticket references from commit messages
 3. Show a preview with confirmation buttons
-4. Send the announcement when you click "✅ Send to Channel":
-   - **If used in a channel**: Posts the announcement to that channel
+4. Send the announcement when you click "✅ Send Announcement":
+   - **If used in a channel**: Posts the announcement as an ephemeral message (only visible to you)
    - **If used in a DM**: Sends the announcement as a DM to you
 
 **Example announcement format:**
@@ -131,6 +131,7 @@ The bot will:
 - ✅ **Interactive confirmation** before posting to channel
 - ✅ **Clickable JIRA links** when tickets are referenced
 - ✅ **Smart routing** - sends to channel if used in channel, DM if used in DM
+- ✅ **Private announcements** - ephemeral messages in channels (only visible to you)
 
 **Note**: The bot looks for JIRA references (e.g., `process.env.JIRA_PROJECT-12345`) in commit titles and messages. Commits without JIRA references are still included in the announcement!
 

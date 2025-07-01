@@ -116,9 +116,10 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         previewMessage = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:* No commits found in this release.`;
       }
 
-      // Send confirmation message with buttons
+      // Send confirmation message with buttons (ephemeral - only visible to user)
       await respond({
         text: "Release announcement preview:",
+        response_type: 'ephemeral',
         blocks: [
           {
             type: "section",
@@ -137,19 +138,19 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           {
             type: "actions",
             elements: [
-              {
-                type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "✅ Send to Channel"
+                              {
+                  type: "button",
+                  text: {
+                    type: "plain_text",
+                    text: "✅ Send Announcement"
+                  },
+                  style: "primary",
+                  action_id: "send_announcement",
+                  value: JSON.stringify({
+                    message: previewMessage,
+                    releaseNumber: releaseNumber
+                  })
                 },
-                style: "primary",
-                action_id: "send_announcement",
-                value: JSON.stringify({
-                  message: previewMessage,
-                  releaseNumber: releaseNumber
-                })
-              },
               {
                 type: "button",
                 text: {
