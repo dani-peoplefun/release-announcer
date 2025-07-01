@@ -1,18 +1,17 @@
 // Import necessary libraries
-const { App, AwsLambdaReceiver } = require('@slack/bolt');
+const { App, HTTPReceiver } = require('@slack/bolt');
 const { Octokit } = require('@octokit/rest');
 require('dotenv').config();
 
 // --- Initialize clients ---
-// Use AwsLambdaReceiver for serverless environments (works with Vercel too)
-const awsLambdaReceiver = new AwsLambdaReceiver({
+// Use HTTPReceiver for better Vercel compatibility
+const receiver = new HTTPReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
-  receiver: awsLambdaReceiver,
-  processBeforeResponse: true,
+  receiver: receiver,
 });
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -275,53 +274,15 @@ app.error(async (error) => {
 // This exports the app handler for Vercel's serverless environment
 module.exports = async (req, res) => {
   try {
-    // Get request body - Slack sends form-encoded data
-    let body = '';
-    if (req.body) {
-      if (typeof req.body === 'string') {
-        body = req.body;
-      } else {
-        // If it's already parsed as an object, convert back to form data
-        body = new URLSearchParams(req.body).toString();
-      }
-    }
-
-    // Convert Vercel request to AWS Lambda event format
-    const lambdaEvent = {
-      body: body,
-      headers: req.headers,
-      httpMethod: req.method,
-      isBase64Encoded: false,
-      queryStringParameters: req.query || {},
-    };
-
-    // Create AWS Lambda context
-    const lambdaContext = {
-      callbackWaitsForEmptyEventLoop: false,
-    };
-
-    // Call the AWS Lambda receiver
-    const result = await awsLambdaReceiver.start();
-    const response = await result(lambdaEvent, lambdaContext);
-
-    // Send response back to Vercel
-    res.status(response.statusCode || 200);
-    
-    if (response.headers) {
-      Object.entries(response.headers).forEach(([key, value]) => {
-        res.setHeader(key, value);
-      });
-    }
-    
-    res.send(response.body || '');
-
+    // Use the HTTPReceiver to handle the request directly
+    await receiver.requestHandler(req, res);
   } catch (error) {
     console.error('Failed to process request:', error);
     console.error('Request details:', {
       method: req.method,
       url: req.url,
       headers: req.headers,
-      body: req.body
+      body: typeof req.body === 'string' ? req.body.substring(0, 200) : req.body
     });
     res.status(500).json({ error: 'Internal server error' });
   }
