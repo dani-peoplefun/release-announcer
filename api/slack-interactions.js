@@ -30,46 +30,96 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     
     // Handle case where button value was simplified due to size constraints
     let fullChanges = allChanges;
-    if (!fullChanges || fullChanges.length === 0) {
+    if (!fullChanges || fullChanges.length === 0 || buttonData.simplified) {
       // Extract changes from the original message blocks
       fullChanges = [];
       const messageBlocks = body.message?.blocks || [];
       
+      console.log('Button data was simplified, extracting changes from message blocks...');
+      console.log('Total blocks to search:', messageBlocks.length);
+      console.log('Expected change count:', changeCount);
+      
+      let foundChangesSection = false;
       for (const block of messageBlocks) {
         if (block.type === 'section' && block.text?.text) {
           const blockText = block.text.text;
-          // Look for lines that start with "• " (bullet points)
-          const lines = blockText.split('\n');
-          for (const line of lines) {
-            if (line.trim().startsWith('• ')) {
-              fullChanges.push(line.trim());
+          
+          // Skip until we find the "Changes:" section
+          if (blockText.includes('*Changes:*')) {
+            foundChangesSection = true;
+          }
+          
+          // If we're in the changes section, extract bullet points
+          if (foundChangesSection) {
+            const lines = blockText.split('\n');
+            for (const line of lines) {
+              if (line.trim().startsWith('• ')) {
+                fullChanges.push(line.trim());
+              }
             }
           }
         }
       }
+      
+      console.log('Extracted changes count:', fullChanges.length);
+      console.log('First few changes:', fullChanges.slice(0, 3));
+      
+      // If we still don't have the expected number of changes, try a more aggressive approach
+      if (fullChanges.length < changeCount) {
+        console.log('Trying more aggressive extraction...');
+        fullChanges = [];
+        for (const block of messageBlocks) {
+          if (block.type === 'section' && block.text?.text) {
+            const blockText = block.text.text;
+            const lines = blockText.split('\n');
+            for (const line of lines) {
+              if (line.trim().startsWith('• ')) {
+                fullChanges.push(line.trim());
+              }
+            }
+          }
+        }
+        console.log('Aggressive extraction found:', fullChanges.length, 'changes');
+      }
     }
+    
+    console.log('Total changes available:', fullChanges.length);
+    console.log('Button data had allChanges:', !!allChanges, 'length:', allChanges?.length || 0);
     
     // Get selected changes from checkboxes
     let selectedChanges = [];
     const checkboxStates = body.state?.values || {};
+    
+    console.log('Checkbox states available:', Object.keys(checkboxStates).length);
+    console.log('Checkbox state keys:', Object.keys(checkboxStates));
     
     // Extract selected changes from all checkbox groups
     Object.keys(checkboxStates).forEach(blockId => {
       Object.keys(checkboxStates[blockId]).forEach(actionId => {
         if (actionId.startsWith('select_changes_')) {
           const selectedOptions = checkboxStates[blockId][actionId].selected_options || [];
+          console.log(`Checkbox group ${actionId} has ${selectedOptions.length} selected options`);
+          
           selectedOptions.forEach(option => {
             const changeIndex = parseInt(option.value);
+            console.log(`Processing option value: ${option.value}, parsed as index: ${changeIndex}`);
+            
             if (changeIndex >= 0 && changeIndex < fullChanges.length) {
               selectedChanges.push(fullChanges[changeIndex]);
+              console.log(`Added change ${changeIndex}: ${fullChanges[changeIndex].substring(0, 50)}...`);
+            } else {
+              console.log(`Index ${changeIndex} is out of bounds (max: ${fullChanges.length - 1})`);
             }
           });
         }
       });
     });
     
+    console.log('Selected changes count after checkbox processing:', selectedChanges.length);
+    
     // If no checkboxes were selected, but we have changes, include all changes
     if (selectedChanges.length === 0 && fullChanges.length > 0) {
+      console.log('No checkboxes selected, including all changes');
       selectedChanges = fullChanges;
     }
     

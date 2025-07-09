@@ -72,12 +72,18 @@ function createSafeButtonValue(data, maxLength = 1900) {
     return jsonString;
   }
   
-  // If too large, create a simplified version
+  // If too large, create a simplified version but include a hash of the changes
+  // This helps us verify we're working with the right data set
+  const changesHash = data.allChanges ? 
+    data.allChanges.join('').substring(0, 50) : '';
+  
   const simplified = {
     releaseNumber: data.releaseNumber,
     channelId: data.channelId,
     channelName: data.channelName,
-    changeCount: data.allChanges ? data.allChanges.length : 0
+    changeCount: data.allChanges ? data.allChanges.length : 0,
+    simplified: true,
+    changesHash: changesHash
   };
   
   return JSON.stringify(simplified);
