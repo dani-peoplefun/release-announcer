@@ -26,7 +26,28 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     await ack();
     
     const buttonData = JSON.parse(body.actions[0].value);
-    const { allChanges, releaseNumber, channelId, channelName } = buttonData;
+    const { allChanges, releaseNumber, channelId, channelName, changeCount } = buttonData;
+    
+    // Handle case where button value was simplified due to size constraints
+    let fullChanges = allChanges;
+    if (!fullChanges || fullChanges.length === 0) {
+      // Extract changes from the original message blocks
+      fullChanges = [];
+      const messageBlocks = body.message?.blocks || [];
+      
+      for (const block of messageBlocks) {
+        if (block.type === 'section' && block.text?.text) {
+          const blockText = block.text.text;
+          // Look for lines that start with "• " (bullet points)
+          const lines = blockText.split('\n');
+          for (const line of lines) {
+            if (line.trim().startsWith('• ')) {
+              fullChanges.push(line.trim());
+            }
+          }
+        }
+      }
+    }
     
     // Get selected changes from checkboxes
     let selectedChanges = [];
@@ -39,13 +60,18 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
           const selectedOptions = checkboxStates[blockId][actionId].selected_options || [];
           selectedOptions.forEach(option => {
             const changeIndex = parseInt(option.value);
-            if (changeIndex >= 0 && changeIndex < allChanges.length) {
-              selectedChanges.push(allChanges[changeIndex]);
+            if (changeIndex >= 0 && changeIndex < fullChanges.length) {
+              selectedChanges.push(fullChanges[changeIndex]);
             }
           });
         }
       });
     });
+    
+    // If no checkboxes were selected, but we have changes, include all changes
+    if (selectedChanges.length === 0 && fullChanges.length > 0) {
+      selectedChanges = fullChanges;
+    }
     
     // Create the announcement message
     let message;
@@ -105,7 +131,7 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     
     // Update the original message to show where it was sent
     const selectedCount = selectedChanges.length;
-    const totalCount = allChanges.length;
+    const totalCount = changeCount || fullChanges.length;
     await respond({
       text: `✅ Release announcement for \`${releaseNumber}\` has been sent to ${sentTo}.\n\n*Included:* ${selectedCount} of ${totalCount} changes`,
       response_type: 'ephemeral',

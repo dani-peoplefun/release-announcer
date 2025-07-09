@@ -29,6 +29,60 @@ function formatJiraServerUrl(jiraServer) {
   return `https://${jiraServer}`;
 }
 
+// --- Helper function to chunk text for Slack blocks ---
+function chunkTextForSlack(text, maxLength = 2900) {
+  if (text.length <= maxLength) {
+    return [text];
+  }
+  
+  const chunks = [];
+  const lines = text.split('\n');
+  let currentChunk = '';
+  
+  for (const line of lines) {
+    // If adding this line would exceed the limit, start a new chunk
+    if (currentChunk.length + line.length + 1 > maxLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk.trim());
+        currentChunk = '';
+      }
+      
+      // If a single line is too long, truncate it
+      if (line.length > maxLength) {
+        chunks.push(line.substring(0, maxLength - 3) + '...');
+      } else {
+        currentChunk = line;
+      }
+    } else {
+      currentChunk += (currentChunk ? '\n' : '') + line;
+    }
+  }
+  
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+}
+
+// --- Helper function to create safe button value ---
+function createSafeButtonValue(data, maxLength = 1900) {
+  const jsonString = JSON.stringify(data);
+  if (jsonString.length <= maxLength) {
+    return jsonString;
+  }
+  
+  // If too large, create a simplified version
+  const simplified = {
+    releaseNumber: data.releaseNumber,
+    channelId: data.channelId,
+    channelName: data.channelName,
+    changeCount: data.allChanges ? data.allChanges.length : 0
+  };
+  
+  return JSON.stringify(simplified);
+}
+
 // --- Helper function to determine previous release ---
 function getPreviousRelease(releaseNumber) {
   // Handle different release numbering schemes
@@ -155,7 +209,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
       ];
 
       if (releaseChanges.length > 0) {
-        // Show the full announcement preview first
+        // Show the full announcement preview first, but chunk it for large releases
         const fullPreview = `*Deploying to prod* 🚀\n*Branch:* \`releases/${releaseNumber}\`\n*Changes:*\n${releaseChanges.join('\n')}`;
         
         blocks.push({
@@ -166,12 +220,16 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           }
         });
         
-        blocks.push({
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: fullPreview
-          }
+        // Split the preview into manageable chunks
+        const previewChunks = chunkTextForSlack(fullPreview);
+        previewChunks.forEach((chunk, index) => {
+          blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: chunk
+            }
+          });
         });
         
         blocks.push({
@@ -179,12 +237,14 @@ app.command('/release', async ({ command, ack, respond, say }) => {
         });
 
         // Create simplified checkbox options that reference the full text above
-        const checkboxOptions = releaseChanges.map((change, index) => {
+        // Limit to first 30 changes to prevent block size issues
+        const maxChangesToShow = Math.min(releaseChanges.length, 30);
+        const checkboxOptions = releaseChanges.slice(0, maxChangesToShow).map((change, index) => {
           // Extract ticket number or create simple identifier
           let label = `Change ${index + 1}`;
           
           // Try to extract JIRA ticket
-          const jiraMatch = change.match(/process.env.JIRA_PROJECT-\d+/);
+          const jiraMatch = change.match(/WSU-\d+/); // Use actual JIRA project key
           if (jiraMatch) {
             label = jiraMatch[0];
           } else {
@@ -197,7 +257,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           
           // Add first few words of commit for context
           let description = change.replace('• ', '').replace(/<[^>]*>/g, ''); // Remove bullet and links
-          const firstWords = description.split(' ').slice(0, 6).join(' ');
+          const firstWords = description.split(' ').slice(0, 4).join(' '); // Reduced to 4 words
           if (description.length > firstWords.length) {
             description = firstWords + '...';
           }
@@ -205,11 +265,22 @@ app.command('/release', async ({ command, ack, respond, say }) => {
           return {
             text: {
               type: "plain_text",
-              text: `${label}: ${description}`
+              text: `${label}: ${description}`.substring(0, 75) // Limit text length
             },
             value: index.toString()
           };
         });
+
+        // Add warning if we truncated changes
+        if (releaseChanges.length > maxChangesToShow) {
+          blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `⚠️ *Showing first ${maxChangesToShow} of ${releaseChanges.length} changes in selection below. All changes will be included in the announcement unless you deselect them.*`
+            }
+          });
+        }
 
         blocks.push({
           type: "section",
@@ -259,7 +330,7 @@ app.command('/release', async ({ command, ack, respond, say }) => {
             },
             style: "primary",
             action_id: "send_announcement",
-            value: JSON.stringify({
+            value: createSafeButtonValue({
               allChanges: releaseChanges,
               releaseNumber: releaseNumber,
               channelId: command.channel_id,
