@@ -117,6 +117,73 @@ function getPreviousRelease(releaseNumber) {
   }
 }
 
+// --- Helper function to extract changes from GitHub ---
+async function extractChangesFromGitHub(releaseNumber) {
+  try {
+    const previousRelease = getPreviousRelease(releaseNumber);
+    
+    const { data: comparison } = await octokit.repos.compareCommits({
+      owner: process.env.GITHUB_OWNER,
+      repo: process.env.GITHUB_REPO,
+      base: `releases/${previousRelease}`,
+      head: `releases/${releaseNumber}`,
+    });
+
+    // Process commits and extract JIRA references
+    const releaseChanges = [];
+    const processedCommits = new Set();
+    const jiraRegex = new RegExp(`\\b${process.env.JIRA_PROJECT}-\\d+\\b`, 'gi');
+
+    for (const commit of comparison.commits) {
+      const commitSha = commit.sha.substring(0, 7);
+      const commitTitle = commit.commit.message.split('\n')[0];
+      const commitMessage = commit.commit.message;
+      
+      if (processedCommits.has(commitSha)) {
+        continue;
+      }
+      processedCommits.add(commitSha);
+      
+      const allText = `${commitTitle} ${commitMessage}`;
+      const jiraMatches = allText.match(jiraRegex);
+      const githubRegex = /#(\d+)/g;
+      const githubMatches = allText.match(githubRegex);
+      
+      if (jiraMatches && jiraMatches.length > 0) {
+        // Found JIRA references - link to first one found
+        const firstJiraTicket = jiraMatches[0].toUpperCase();
+        // Remove GitHub reference from title for clean JIRA link
+        const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
+        let changeText = `• <${formatJiraServerUrl(process.env.JIRA_SERVER)}/browse/${firstJiraTicket}|${cleanTitle}>`;
+        
+        // Append GitHub link if GitHub reference found
+        if (githubMatches && githubMatches.length > 0) {
+          const firstGithubRef = githubMatches[0].replace('#', '');
+          const githubUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/pull/${firstGithubRef}`;
+          changeText += ` <${githubUrl}|(#${firstGithubRef})>`;
+        }
+        
+        releaseChanges.push(changeText);
+      } else if (githubMatches && githubMatches.length > 0) {
+        // No JIRA but found GitHub reference
+        const firstGithubRef = githubMatches[0].replace('#', '');
+        const githubUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/pull/${firstGithubRef}`;
+        // Remove the GitHub reference from the title since it's already in the link
+        const cleanTitle = commitTitle.replace(/\s*\(#\d+\)\s*$/, '').replace(/\s*#\d+\s*$/, '');
+        releaseChanges.push(
+          `• ${cleanTitle} <${githubUrl}|(#${firstGithubRef})>`
+        );
+      }
+      // Skip commits with no references (don't add to releaseChanges)
+    }
+
+    return releaseChanges;
+  } catch (error) {
+    console.error('Error extracting changes from GitHub:', error);
+    return [];
+  }
+}
+
 // --- Slash Command Handler ---
 app.command('/release', async ({ command, ack, respond, say }) => {
   try {
@@ -492,4 +559,7 @@ module.exports = async (req, res) => {
     });
     res.status(500).json({ error: 'Internal server error' });
   }
-}; 
+};
+
+// Export the function for use in other modules
+module.exports.extractChangesFromGitHub = extractChangesFromGitHub; 

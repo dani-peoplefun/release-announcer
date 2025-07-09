@@ -31,13 +31,23 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
     // Handle case where button value was simplified due to size constraints
     let fullChanges = allChanges;
     if (!fullChanges || fullChanges.length === 0 || buttonData.simplified) {
-      // Extract changes from the original message blocks
-      fullChanges = [];
-      const messageBlocks = body.message?.blocks || [];
-      
+      // Debug: Log the entire interaction payload structure
       console.log('Button data was simplified, extracting changes from message blocks...');
+      console.log('Body keys:', Object.keys(body));
+      console.log('Body.message keys:', body.message ? Object.keys(body.message) : 'no message');
+      console.log('Body.message.blocks length:', body.message?.blocks?.length || 0);
+      console.log('Body.message.text length:', body.message?.text?.length || 0);
+      console.log('Body.container keys:', body.container ? Object.keys(body.container) : 'no container');
+      
+      // Try different possible locations for the message data
+      const messageBlocks = body.message?.blocks || body.container?.message?.blocks || [];
+      const messageText = body.message?.text || body.container?.message?.text || '';
+      
       console.log('Total blocks to search:', messageBlocks.length);
       console.log('Expected change count:', changeCount);
+      
+      // Extract changes from the original message blocks
+      fullChanges = [];
       
       // Look for bullet points in ALL blocks that contain text
       // Since chunking can split changes across multiple blocks
@@ -62,7 +72,6 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
       // If we still don't have any changes, try extracting from the message text directly
       if (fullChanges.length === 0) {
         console.log('No changes found in blocks, trying to extract from message text...');
-        const messageText = body.message?.text || '';
         console.log('Message text length:', messageText.length);
         console.log('Message text sample:', messageText.substring(0, 200));
         
@@ -75,6 +84,22 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
           }
         }
         console.log('Text extraction found:', fullChanges.length, 'changes');
+      }
+      
+      // Final fallback: if we still have no changes but expected some, reconstruct from GitHub
+      if (fullChanges.length === 0 && changeCount > 0) {
+        console.log('No changes extracted, attempting to reconstruct from GitHub...');
+        try {
+          // Try to reconstruct the changes by calling GitHub API again
+          const { extractChangesFromGitHub } = require('./slack');
+          const reconstructedChanges = await extractChangesFromGitHub(releaseNumber);
+          if (reconstructedChanges && reconstructedChanges.length > 0) {
+            fullChanges = reconstructedChanges;
+            console.log('Reconstructed', fullChanges.length, 'changes from GitHub');
+          }
+        } catch (error) {
+          console.error('Failed to reconstruct changes from GitHub:', error);
+        }
       }
     }
     
