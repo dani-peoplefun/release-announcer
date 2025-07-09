@@ -39,23 +39,18 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
       console.log('Total blocks to search:', messageBlocks.length);
       console.log('Expected change count:', changeCount);
       
-      let foundChangesSection = false;
+      // Look for bullet points in ALL blocks that contain text
+      // Since chunking can split changes across multiple blocks
       for (const block of messageBlocks) {
         if (block.type === 'section' && block.text?.text) {
           const blockText = block.text.text;
+          console.log('Scanning block for bullet points:', blockText.substring(0, 100) + '...');
           
-          // Skip until we find the "Changes:" section
-          if (blockText.includes('*Changes:*')) {
-            foundChangesSection = true;
-          }
-          
-          // If we're in the changes section, extract bullet points
-          if (foundChangesSection) {
-            const lines = blockText.split('\n');
-            for (const line of lines) {
-              if (line.trim().startsWith('• ')) {
-                fullChanges.push(line.trim());
-              }
+          const lines = blockText.split('\n');
+          for (const line of lines) {
+            if (line.trim().startsWith('• ')) {
+              fullChanges.push(line.trim());
+              console.log('Found bullet point:', line.trim().substring(0, 50) + '...');
             }
           }
         }
@@ -64,22 +59,22 @@ app.action('send_announcement', async ({ ack, body, say, respond, client }) => {
       console.log('Extracted changes count:', fullChanges.length);
       console.log('First few changes:', fullChanges.slice(0, 3));
       
-      // If we still don't have the expected number of changes, try a more aggressive approach
-      if (fullChanges.length < changeCount) {
-        console.log('Trying more aggressive extraction...');
-        fullChanges = [];
-        for (const block of messageBlocks) {
-          if (block.type === 'section' && block.text?.text) {
-            const blockText = block.text.text;
-            const lines = blockText.split('\n');
-            for (const line of lines) {
-              if (line.trim().startsWith('• ')) {
-                fullChanges.push(line.trim());
-              }
+      // If we still don't have any changes, try extracting from the message text directly
+      if (fullChanges.length === 0) {
+        console.log('No changes found in blocks, trying to extract from message text...');
+        const messageText = body.message?.text || '';
+        console.log('Message text length:', messageText.length);
+        console.log('Message text sample:', messageText.substring(0, 200));
+        
+        if (messageText) {
+          const lines = messageText.split('\n');
+          for (const line of lines) {
+            if (line.trim().startsWith('• ')) {
+              fullChanges.push(line.trim());
             }
           }
         }
-        console.log('Aggressive extraction found:', fullChanges.length, 'changes');
+        console.log('Text extraction found:', fullChanges.length, 'changes');
       }
     }
     
